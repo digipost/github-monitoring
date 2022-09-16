@@ -1,0 +1,45 @@
+<configuration debug="false">
+
+    <property name="application" value="github-monitoring" />
+    <property name="testlogging" value="${testlogging}" />
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%property{HOSTNAME}] [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="STDOUT_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <!-- Se https://github.com/logstash/logstash-logback-encoder for detaljer om tilgjengelige variabler og mulig oppsett -->
+            <fieldNames>
+                <timestamp>timestamp</timestamp>
+                <levelValue>[ignore]</levelValue>
+                <version>[ignore]</version>
+            </fieldNames>
+            <provider class="no.posten.dpost.logging.loggingevent.DigipostStandardFieldsProvider">
+                <logType>app</logType>
+                <application>${application}</application>
+            </provider>
+        </encoder>
+    </appender>
+
+    <if condition='property("env").equals("local")'>
+        <then>
+            <root level="INFO">
+                <appender-ref ref="STDOUT"/>
+            </root>
+        </then>
+        <else>
+            <root level="INFO">
+                <appender-ref ref="STDOUT_JSON"/>
+            </root>
+        </else>
+    </if>
+
+    <logger name="no.posten" level="INFO" />
+    <logger name="no.digipost.cache2.inmemory.Cache" level="WARN" />
+    <logger name="org.apache.pdfbox" level="OFF" />
+    <logger name="org.apache.fontbox" level="OFF" />
+
+</configuration>
