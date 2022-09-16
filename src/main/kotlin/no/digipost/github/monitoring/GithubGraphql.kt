@@ -6,9 +6,13 @@ import com.github.graphql.client.GetVulnerabilityAlertsForRepoQuery
 import com.github.graphql.client.QueryRepositoriesQuery
 import kotlinx.coroutines.runBlocking
 import okhttp3.internal.toImmutableList
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.time.ZonedDateTime
 
 data class Repos(val all: List<Repository>, val onlyVulnerable: List<Repository>)
+
+val logger: Logger = LoggerFactory.getLogger("no.digipost.github.monitoring.GithubGraphql")
 
 fun fetchAllReposWithVulnerabilities(apolloClient: ApolloClient): Repos {
     return runBlocking {
@@ -26,6 +30,7 @@ private suspend fun getVulnerabilitiesForRepo(
     apolloClient: ApolloClient,
     name: String
 ): List<Vulnerability?> {
+    logger.info("henter sårbarheter for repo $name")
     val response = apolloClient.query(GetVulnerabilityAlertsForRepoQuery(name, "digipost")).execute()
 
     val vulnerabilityAlerts = response.data?.repository?.vulnerabilityAlerts?.nodes ?: emptyList()
@@ -43,13 +48,12 @@ private suspend fun getVulnerabilitiesForRepo(
         }
     }.toImmutableList()
 
-    return vulnerabilities;
+    return vulnerabilities
 }
 
 
 private suspend fun listRepos(apolloClient: ApolloClient): List<Repository> {
-    println("Henter repoer")
-
+    logger.info("henter repoer fra Github")
     val mutableListOf = mutableListOf<Repository>()
 
     var cursor: String? = null
