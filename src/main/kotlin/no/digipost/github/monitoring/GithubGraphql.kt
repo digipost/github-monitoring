@@ -4,25 +4,43 @@ import com.apollographql.apollo3.ApolloClient
 import com.apollographql.apollo3.api.Optional
 import com.github.graphql.client.GetVulnerabilityAlertsForRepoQuery
 import com.github.graphql.client.QueryRepositoriesQuery
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.internal.toImmutableList
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.time.ZonedDateTime
+import kotlin.math.log
 
 data class Repos(val all: List<Repository>, val onlyVulnerable: List<Repository>)
 
 val logger: Logger = LoggerFactory.getLogger("no.digipost.github.monitoring.GithubGraphql")
 
 fun fetchAllReposWithVulnerabilities(apolloClient: ApolloClient): Repos {
-    return runBlocking {
-        return@runBlocking listRepos(apolloClient)
-            .map { r ->
-                val vulnerabilities = getVulnerabilitiesForRepo(apolloClient, r.name)
-                r.copy(vulnerabilities = vulnerabilities)
-            }.map { Repos(listOf(it), listOf(it)) }
-            .reduce { acc, repos -> Repos(acc.all.plus(repos.all), acc.onlyVulnerable.plus(repos.onlyVulnerable)) }
+    val repositoryChannel = Channel<Repository>()
+    val repositories = mutableListOf<Repository>()
+    val vulnRepositories = mutableListOf<Repository>()
+
+    runBlocking {
+        launch {
+            val listRepos = listRepos(apolloClient, repositoryChannel)
+            repositoryChannel.close()
+        }
+
+        launch {
+            for (r in repositoryChannel) {
+                launch {
+                    val vulnerabilities = getVulnerabilitiesForRepo(apolloClient, r.name)
+                    r.copy(vulnerabilities = vulnerabilities).let {
+                        repositories.add(it)
+                        if (it.vulnerabilities.isNotEmpty()) vulnRepositories.add(it)
+                    }
+                }
+            }
+        }
     }
+    return Repos(repositories, vulnRepositories)
 }
 
 
@@ -52,14 +70,17 @@ private suspend fun getVulnerabilitiesForRepo(
 }
 
 
-private suspend fun listRepos(apolloClient: ApolloClient): List<Repository> {
-    logger.info("henter repoer fra Github")
+private suspend fun listRepos(apolloClient: ApolloClient, repositoryChannel: Channel<Repository>): List<Repository> {
     val mutableListOf = mutableListOf<Repository>()
+
+    logger.info("Henter repoer med owner 'digipost' som ikke er arkiverte og har språk i listen $LANGUAGES")
 
     var cursor: String? = null
     var hasNext = true
 
     while (hasNext) {
+        logger.info("henter repoer fra Github ${if (cursor != null) " etter: $cursor" else " fra toppen"}")
+
         val response = apolloClient.query(QueryRepositoriesQuery(Optional.Present(cursor))).execute()
 
         response.data?.viewer?.repositories?.nodes
@@ -67,7 +88,7 @@ private suspend fun listRepos(apolloClient: ApolloClient): List<Repository> {
             ?.filter { LANGUAGES.contains(it?.languages?.nodes?.firstOrNull()?.name) }
             ?.forEach {
                 it?.let {
-                    mutableListOf.add(
+                    repositoryChannel.send(
                         Repository(
                             it.owner.login,
                             it.name,

@@ -2,7 +2,7 @@ query QueryRepositories($after: String)
 {
     viewer {
         repositories(
-            first: 100,
+            first: 50,
             after:$after, orderBy: {field: NAME, direction: ASC},
             affiliations:[OWNER, ORGANIZATION_MEMBER, COLLABORATOR],
             ownerAffiliations:[OWNER, ORGANIZATION_MEMBER, COLLABORATOR]
