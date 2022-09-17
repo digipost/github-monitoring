@@ -19,14 +19,6 @@
         <jackson.version>2.13.4</jackson.version>
     </properties>
 
-    <repositories>
-        <repository>
-            <id>mavenCentral</id>
-            <url>https://repo1.maven.org/maven2/</url>
-        </repository>
-    </repositories>
-
-
     <dependencies>
         <dependency>
             <groupId>no.digipost</groupId>
@@ -44,10 +36,10 @@
             <scope>runtime</scope>
             <version>1.4.0</version>
         </dependency>
-                <dependency>
+        <dependency>
             <groupId>org.codehaus.janino</groupId>
             <artifactId>janino</artifactId>
-            <version>3.1.7</version>
+            <version>3.1.8</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
@@ -79,18 +71,6 @@
             <artifactId>logging-core</artifactId>
             <version>1.3.0</version>
             <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.jetbrains.kotlin</groupId>
-            <artifactId>kotlin-test-junit5</artifactId>
-            <version>1.7.10</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <version>5.9.0</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>
@@ -179,14 +159,81 @@
                 </executions>
             </plugin>
             <plugin>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.22.2</version>
-            </plugin>
-            <plugin>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <version>2.22.2</version>
             </plugin>
+            <plugin>
+                <groupId>pl.project13.maven</groupId>
+                <artifactId>git-commit-id-plugin</artifactId>
+                <version>4.0.0</version>
+                <configuration>
+                    <includeOnlyProperties>
+                        <includeOnlyProperty>^git.build.(time|version)$</includeOnlyProperty>
+                        <includeOnlyProperty>^git.commit.id.(abbrev|full)$</includeOnlyProperty>
+                    </includeOnlyProperties>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>revision</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <from>
+                        <image>digipost.azurecr.io/infrastructure/docker-openjdk:jdk17_17.0.2</image>
+                    </from>
+                    <to>
+                        <image>digipost.azurecr.io/digipost/${project.artifactId}:${project.version}</image>
+                    </to>
+                    <container>
+                        <jvmFlags>
+                            <jvmFlag>-Dfile.encoding=UTF-8</jvmFlag>
+                            <jvmFlag>-Dlogback.configurationFile=../logback.xml</jvmFlag>
+                            <!-- Setter java.security.egd for å unngå heng ved generering av random numbers -->
+                            <jvmFlag>-Djava.security.egd=file:///dev/urandom</jvmFlag>
+                            <jvmFlag>-XX:+ExitOnOutOfMemoryError</jvmFlag>
+                            <jvmFlag>-Dcom.ibm.mq.cfg.preferTLS=true</jvmFlag>
+                            <jvmFlag>-Dcom.ibm.mq.cfg.useIBMCipherMappings=false</jvmFlag>
+                        </jvmFlags>
+                        <environment>
+                            <TZ>Europe/Oslo</TZ>
+                            <!--suppress MavenModelInspection -->
+                            <Git-Commit>${git.commit.id.abbrev}</Git-Commit>
+                            <!--suppress MavenModelInspection -->
+                            <Git-Build-Time>${git.build.time}</Git-Build-Time>
+                            <!--suppress MavenModelInspection -->
+                            <Git-Build-Version>${git.build.version}</Git-Build-Version>
+                            <Implementation-Title>${project.artifactId}</Implementation-Title>
+                            <Build-Jdk-Spec>${java.version}</Build-Jdk-Spec>
+                        </environment>
+                    </container>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm</artifactId>
+                        <version>9.1</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
         </plugins>
     </build>
+
+    <repositories>
+        <repository>
+            <id>mavenCentral</id>
+            <url>https://repo1.maven.org/maven2/</url>
+        </repository>
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/digipost/maven-package-registry</url>
+        </repository>
+    </repositories>
 
 </project>

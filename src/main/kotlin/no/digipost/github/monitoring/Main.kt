@@ -6,21 +6,28 @@ import io.micrometer.core.instrument.MultiGauge
 import io.micrometer.core.instrument.Tags
 import io.micrometer.prometheus.PrometheusConfig
 import io.micrometer.prometheus.PrometheusMeterRegistry
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import no.digipost.monitoring.micrometer.ApplicationInfoMetrics
 import no.digipost.monitoring.prometheus.SimplePrometheusServer
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
+import java.nio.file.Path
 import kotlin.system.measureTimeMillis
-
-const val TOKEN = "" //digipost-bot
 
 val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin")
 
 suspend fun main(): Unit = coroutineScope {
+    val env = System.getenv("env")
+    val token = if(env == "local") System.getenv("token") else withContext(Dispatchers.IO) {
+        Files.readString(Path.of("/secrets/githubtoken.txt"))
+    }
+
     val logger = LoggerFactory.getLogger("no.digipost.github.monitoring.Main")
     val prometheusMeterRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
 
@@ -31,7 +38,7 @@ suspend fun main(): Unit = coroutineScope {
         .register(prometheusMeterRegistry)
 
     val apolloClient = ApolloClient.Builder()
-        .httpHeaders(listOf(HttpHeader("Authorization", "bearer $TOKEN")))
+        .httpHeaders(listOf(HttpHeader("Authorization", "bearer $token")))
         .serverUrl("https://api.github.com/graphql")
         .build()
 
