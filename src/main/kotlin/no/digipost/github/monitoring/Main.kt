@@ -25,7 +25,7 @@ val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin")
 suspend fun main(): Unit = coroutineScope {
     val env = System.getenv("env")
     val token = if(env == "local") System.getenv("token") else withContext(Dispatchers.IO) {
-        Files.readString(Path.of("/secrets/githubtoken.txt"))
+        Files.readString(Path.of("/secrets/githubtoken.txt")).trim()
     }
 
     val logger = LoggerFactory.getLogger("no.digipost.github.monitoring.Main")
