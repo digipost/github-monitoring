@@ -11,7 +11,6 @@ import okhttp3.internal.toImmutableList
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.time.ZonedDateTime
-import kotlin.math.log
 
 data class Repos(val all: List<Repository>, val onlyVulnerable: List<Repository>)
 
@@ -30,11 +29,14 @@ fun fetchAllReposWithVulnerabilities(apolloClient: ApolloClient): Repos {
 
         launch {
             for (r in repositoryChannel) {
-                launch {
+                runBlocking {// Kan være launch, men jeg har sett 502 fra apiet. Bombing kan kanskje skape problemer.
                     val vulnerabilities = getVulnerabilitiesForRepo(apolloClient, r.name)
                     r.copy(vulnerabilities = vulnerabilities).let {
                         repositories.add(it)
-                        if (it.vulnerabilities.isNotEmpty()) vulnRepositories.add(it)
+                        if (it.vulnerabilities.isNotEmpty()) {
+                            logger.info("${vulnerabilities.size} sårbarheter i ${r.name}")
+                            vulnRepositories.add(it)
+                        }
                     }
                 }
             }
