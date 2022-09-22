@@ -20,7 +20,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.system.measureTimeMillis
 
-val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin")
+val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin", "Go")
 
 suspend fun main(): Unit = coroutineScope {
     val env = System.getenv("env")
