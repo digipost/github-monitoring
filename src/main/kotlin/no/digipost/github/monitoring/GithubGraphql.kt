@@ -23,13 +23,13 @@ fun fetchAllReposWithVulnerabilities(apolloClient: ApolloClient): Repos {
 
     runBlocking {
         launch {
-            val listRepos = listRepos(apolloClient, repositoryChannel)
+            listRepos(apolloClient, repositoryChannel)
             repositoryChannel.close()
         }
 
         launch {
             for (r in repositoryChannel) {
-                launch {// Kan være launch, men jeg har sett 502 fra apiet. Bombing kan kanskje skape problemer.
+                launch {
                     val vulnerabilities = getVulnerabilitiesForRepo(apolloClient, r.name)
                     r.copy(vulnerabilities = vulnerabilities).let {
                         repositories.add(it)
@@ -50,7 +50,7 @@ private suspend fun getVulnerabilitiesForRepo(
     apolloClient: ApolloClient,
     name: String
 ): List<Vulnerability?> {
-    if(logger.isDebugEnabled) logger.debug("henter sårbarheter for repo $name")
+    if (logger.isDebugEnabled) logger.debug("henter sårbarheter for repo $name")
     val response = apolloClient.query(GetVulnerabilityAlertsForRepoQuery(name, "digipost")).execute()
 
     val vulnerabilityAlerts = response.data?.repository?.vulnerabilityAlerts?.nodes ?: emptyList()
@@ -72,16 +72,14 @@ private suspend fun getVulnerabilitiesForRepo(
 }
 
 
-private suspend fun listRepos(apolloClient: ApolloClient, repositoryChannel: Channel<Repository>): List<Repository> {
-    val mutableListOf = mutableListOf<Repository>()
-
-    if(logger.isDebugEnabled) logger.debug("Henter repoer med owner 'digipost' som ikke er arkiverte og har språk i listen $LANGUAGES")
+private suspend fun listRepos(apolloClient: ApolloClient, repositoryChannel: Channel<Repository>) {
+    if (logger.isDebugEnabled) logger.debug("Henter repoer med owner 'digipost' som ikke er arkiverte og har språk i listen $LANGUAGES")
 
     var cursor: String? = null
     var hasNext = true
 
     while (hasNext) {
-        if(logger.isDebugEnabled) logger.debug("henter repoer fra Github ${if (cursor != null) " etter: $cursor" else " fra toppen"}")
+        if (logger.isDebugEnabled) logger.debug("henter repoer fra Github ${if (cursor != null) " etter: $cursor" else " fra toppen"}")
 
         val response = apolloClient.query(QueryRepositoriesQuery(Optional.Present(cursor))).execute()
 
@@ -104,7 +102,4 @@ private suspend fun listRepos(apolloClient: ApolloClient, repositoryChannel: Cha
 
         cursor = response.data?.viewer?.repositories?.pageInfo?.endCursor
     }
-
-
-    return mutableListOf
 }

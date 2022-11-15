@@ -17,6 +17,7 @@
         <kotlin.compiler.jvmTarget>17</kotlin.compiler.jvmTarget>
         <apollo.version>3.7.0</apollo.version>
         <jackson.version>2.14.0</jackson.version>
+        <kotlin.version>1.7.21</kotlin.version>
     </properties>
 
     <dependencies>
@@ -140,7 +141,7 @@
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-maven-plugin</artifactId>
-                <version>1.7.20</version>
+                <version>${kotlin.version}</version>
                 <executions>
                     <execution>
                         <id>compile</id>

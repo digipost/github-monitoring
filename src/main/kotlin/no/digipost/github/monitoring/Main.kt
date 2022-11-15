@@ -101,7 +101,7 @@ suspend fun publish(apolloClient: ApolloClient, registerRepos: MultiGauge, regis
 
             all.map { repo ->
                 MultiGauge.Row.of(Tags.of("name", repo.name, "language", repo.language), repo.vulnerabilities.size)
-            }.let { registerRepos.register(it) }
+            }.let { registerRepos.register(it, true) }
 
             onlyVulnerable.map { repo ->
                 repo.vulnerabilities.map { vuln ->
