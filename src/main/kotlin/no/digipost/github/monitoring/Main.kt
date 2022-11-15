@@ -18,6 +18,7 @@ import no.digipost.monitoring.prometheus.SimplePrometheusServer
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.system.measureTimeMillis
 
 val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin", "Go")
@@ -41,24 +42,45 @@ suspend fun main(): Unit = coroutineScope {
         .tags("owner", "digipost")
         .register(prometheusMeterRegistry)
 
-    val apolloClient = ApolloClient.Builder()
-        .httpHeaders(listOf(HttpHeader("Authorization", "bearer $token")))
-        .serverUrl("https://api.github.com/graphql")
-        .build()
+    val apolloClientFactory = cachedApolloClientFactory(token);
 
     launch {
         while (isActive) {
             val timeMillis = measureTimeMillis {
-                publish(apolloClient, multiGaugeRepoVulnCount, multiGaugeInfoScore)
+                publish(apolloClientFactory.invoke(), multiGaugeRepoVulnCount, multiGaugeInfoScore)
             }
             logger.info("Henting av repos med sårbarheter tok ${timeMillis}ms")
             delay(1000 * 60 * 5)
         }
     }
 
-
     SimplePrometheusServer(logger::info)
         .startMetricsServer(prometheusMeterRegistry, 9610)
+}
+
+fun cachedApolloClientFactory(token: String): () -> ApolloClient {
+
+    val fakt: (String) -> ApolloClient = { t: String ->
+        ApolloClient.Builder()
+            .httpHeaders(listOf(HttpHeader("Authorization", "bearer $t")))
+            .serverUrl("https://api.github.com/graphql")
+            .build()
+    }
+
+    val age = AtomicLong(System.currentTimeMillis());
+    var client = fakt(token);
+
+    return {
+        if (System.currentTimeMillis() - age.get() < 1000 * 60 * 60 * 10) {
+            println("Cachet ApolloClient")
+            client
+        } else {
+            println("Lager ny ApolloClient")
+            client = fakt(token)
+            age.set(System.currentTimeMillis());
+            client
+        }
+    }
 }
 
 suspend fun publish(apolloClient: ApolloClient, registerRepos: MultiGauge, registerVulnerabilites: MultiGauge): Unit = coroutineScope {
