@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.system.measureTimeMillis
 
 val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin", "Go")
+val POSSIBLE_CONTAINER_SCAN = setOf("Java", "Kotlin")
 
 suspend fun main(): Unit = coroutineScope {
     val env = System.getenv("env")
@@ -38,16 +39,21 @@ suspend fun main(): Unit = coroutineScope {
         .tags("owner", "digipost")
         .register(prometheusMeterRegistry)
 
+    val multiGaugeContainerScan = MultiGauge.builder("repository_container_scan")
+        .tags("owner", "digipost")
+        .register(prometheusMeterRegistry)
+
     val multiGaugeInfoScore = MultiGauge.builder("vulnerability_info_score")
         .tags("owner", "digipost")
         .register(prometheusMeterRegistry)
 
-    val apolloClientFactory = cachedApolloClientFactory(token);
+    val apolloClientFactory = cachedApolloClientFactory(token)
+    val githubApiClient = GithubApiClient(token)
 
     launch {
         while (isActive) {
             val timeMillis = measureTimeMillis {
-                publish(apolloClientFactory.invoke(), multiGaugeRepoVulnCount, multiGaugeInfoScore)
+                publish(apolloClientFactory.invoke(), githubApiClient, multiGaugeRepoVulnCount, multiGaugeContainerScan, multiGaugeInfoScore)
             }
             logger.info("Henting av repos med sårbarheter tok ${timeMillis}ms")
             delay(1000 * 60 * 5)
@@ -83,21 +89,25 @@ fun cachedApolloClientFactory(token: String): () -> ApolloClient {
     }
 }
 
-suspend fun publish(apolloClient: ApolloClient, registerRepos: MultiGauge, registerVulnerabilites: MultiGauge): Unit = coroutineScope {
+suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient, registerRepos: MultiGauge, registerContainerScanStats: MultiGauge, registerVulnerabilites: MultiGauge): Unit = coroutineScope {
 
     val channel = Channel<Repos>()
     launch {
-        fetchAllReposWithVulnerabilities(apolloClient)
+        fetchAllReposWithVulnerabilities(apolloClient, githubApiClient)
             .let { channel.send(it) }
     }
 
     launch {
         channel.receive().also { repos ->
-            val (all, onlyVulnerable) = repos
+            val all = repos.all
+            val onlyVulnerable = all.filter { it.vulnerabilities.isNotEmpty() }
+            val onlyContainerScan = all.filter { it.containerScanStats != null }
 
             logger.info("Antall repos: ${all.size}")
             logger.info("Antall med sårbarheter: ${onlyVulnerable.size}")
             logger.info("Antall sårbarheter å rette: ${onlyVulnerable.flatMap { it.vulnerabilities }.count()}")
+            logger.info("Antall som feiler containerscan: ${onlyContainerScan.map { it.containerScanStats?.passes }.count()}")
+            logger.info("Gjennomsnittlig suksess for containerscan: ${onlyContainerScan.mapNotNull { it.containerScanStats?.passPercentage }.average()}%")
 
             all.map { repo ->
                 MultiGauge.Row.of(Tags.of("name", repo.name, "language", repo.language), repo.vulnerabilities.size)
@@ -109,13 +119,23 @@ suspend fun publish(apolloClient: ApolloClient, registerRepos: MultiGauge, regis
                         Tags.of(
                             "name", repo.name,
                             "language", repo.language,
-                            "CVE", vuln?.CVE ?: "",
-                            "packagename", vuln?.packageName ?: "UNKNOWN",
-                            "severity", vuln?.severity ?: "UNKNOWN",
-                        ), vuln?.score ?: 0.0
+                            "CVE", vuln.CVE ?: "",
+                            "packagename", vuln.packageName ?: "UNKNOWN",
+                            "severity", vuln.severity ?: "UNKNOWN",
+                        ), vuln.score ?: 0.0
                     )
                 }
             }.flatMap { it.toList() }.let { registerVulnerabilites.register(it) }
+
+            onlyContainerScan.map { repo ->
+                MultiGauge.Row.of(
+                    Tags.of(
+                        "name", repo.name,
+                        "passes", repo.containerScanStats!!.passes.toString()
+                    ), repo.containerScanStats.passPercentage
+                )
+            }.let { registerContainerScanStats.register(it) }
+
         }
     }
 
