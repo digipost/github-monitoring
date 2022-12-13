@@ -12,14 +12,17 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.time.ZonedDateTime
 
-data class Repos(val all: List<Repository>, val onlyVulnerable: List<Repository>)
+data class Repos(val all: List<Repository>)
 
 val logger: Logger = LoggerFactory.getLogger("no.digipost.github.monitoring.GithubGraphql")
 
-fun fetchAllReposWithVulnerabilities(apolloClient: ApolloClient): Repos {
+const val daysToCount = 30
+
+fun fetchAllReposWithVulnerabilities(apolloClient: ApolloClient, githubApiClient: GithubApiClient): Repos {
     val repositoryChannel = Channel<Repository>()
     val repositories = mutableListOf<Repository>()
-    val vulnRepositories = mutableListOf<Repository>()
+    val vulnRepositories = mutableMapOf<String, List<Vulnerability>>()
+    val containerScanRepositories = mutableMapOf<String, ContainerScanStats>()
 
     runBlocking {
         launch {
@@ -29,32 +32,60 @@ fun fetchAllReposWithVulnerabilities(apolloClient: ApolloClient): Repos {
 
         launch {
             for (r in repositoryChannel) {
+                repositories.add(r)
+
                 launch {
                     val vulnerabilities = getVulnerabilitiesForRepo(apolloClient, r.name)
-                    r.copy(vulnerabilities = vulnerabilities).let {
-                        repositories.add(it)
-                        if (it.vulnerabilities.isNotEmpty()) {
+                    if (vulnerabilities.isNotEmpty()) {
+                        r.copy(vulnerabilities = vulnerabilities).let {
                             logger.info("${vulnerabilities.size} sårbarheter i ${r.name}")
-                            vulnRepositories.add(it)
+                            vulnRepositories[it.name] = vulnerabilities
+                        }
+                    }
+                }
+
+                if (POSSIBLE_CONTAINER_SCAN.contains(r.language)) {
+                    launch {
+                        val containerScanStats = getContainerScanStats(githubApiClient, r)
+                        if (containerScanStats != null) {
+                            r.copy(containerScanStats = containerScanStats).let {
+                                logger.info("${r.name} ${if (containerScanStats.passes) "passerer" else "feiler"} containerscan, ${containerScanStats.passPercentage}% suksess siste ${daysToCount} dager (${containerScanStats.numberOfRuns} kjøringer)")
+                               containerScanRepositories[it.name] = containerScanStats
+                            }
+                        } else {
+                            logger.info("${r.name} har ikke containerscan-workflow, skipper")
                         }
                     }
                 }
             }
         }
     }
-    return Repos(repositories, vulnRepositories)
+
+    val repos: List<Repository> = repositories.map { it.copy(vulnerabilities = vulnRepositories[it.name] ?: it.vulnerabilities, containerScanStats = containerScanRepositories[it.name] ?: it.containerScanStats) }
+    return Repos(repos)
+}
+
+private fun getContainerScanStats(
+    githubApiClient: GithubApiClient,
+    repo: Repository
+): ContainerScanStats? {
+    val runs: List<WorkflowRun> = githubApiClient.fetchWorkflowRuns(repo, daysToCount)
+    if (runs.isEmpty()) return null
+    val total: Int = runs.size
+    val passed: Int = runs.filter { it.isSuccess() }.size
+    return ContainerScanStats(runs.first().isSuccess(), "%.1f".format((passed.toDouble() * 100 / total)).toDouble(), total)
 }
 
 
 private suspend fun getVulnerabilitiesForRepo(
     apolloClient: ApolloClient,
     name: String
-): List<Vulnerability?> {
+): List<Vulnerability> {
     if (logger.isDebugEnabled) logger.debug("henter sårbarheter for repo $name")
     val response = apolloClient.query(GetVulnerabilityAlertsForRepoQuery(name, "digipost")).execute()
 
     val vulnerabilityAlerts = response.data?.repository?.vulnerabilityAlerts?.nodes ?: emptyList()
-    val vulnerabilities = vulnerabilityAlerts.map {
+    val vulnerabilities = vulnerabilityAlerts.mapNotNull {
         it?.let {
             Vulnerability(
                 it.securityVulnerability!!.severity.name,
