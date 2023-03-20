@@ -36,7 +36,7 @@ class GithubApiClient(private val githubToken: String) {
         val workflowsUri = GITHUB_WORKFLOWS_URI.format(repo.owner, repo.name)
         val workflowsRequest: HttpRequest = githubApiRequest(workflowsUri)
         val workflowsResponse: HttpResponse<String> = client.send(workflowsRequest, BodyHandlers.ofString())
-        return Gson().fromJson(workflowsResponse.body(), Workflows::class.java)
+        return workflowsResponse.body()?.let { Gson().fromJson(it, Workflows::class.java) } ?: Workflows(emptyList())
     }
 
     private fun fetchRuns(repo: Repository, days: Int): List<WorkflowRun> {
