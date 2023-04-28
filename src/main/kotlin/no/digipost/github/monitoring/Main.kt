@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.system.measureTimeMillis
 
 val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin", "Go")
-val POSSIBLE_CONTAINER_SCAN = setOf("Java", "Kotlin")
+val POSSIBLE_CONTAINER_SCAN = setOf("JavaScript", "Java", "TypeScript", "Kotlin")
 
 suspend fun main(): Unit = coroutineScope {
     val env = System.getenv("env")
@@ -131,6 +131,7 @@ suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient
                 MultiGauge.Row.of(
                     Tags.of(
                         "name", repo.name,
+                        "language", repo.language,
                         "passes", repo.containerScanStats!!.passes.toString()
                     ), repo.containerScanStats.passPercentage
                 )
