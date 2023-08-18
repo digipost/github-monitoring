@@ -19,18 +19,28 @@ import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.system.exitProcess
 import kotlin.system.measureTimeMillis
 
 val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin", "Go")
 val POSSIBLE_CONTAINER_SCAN = setOf("JavaScript", "Java", "TypeScript", "Kotlin")
 
 suspend fun main(): Unit = coroutineScope {
+    val logger = LoggerFactory.getLogger("no.digipost.github.monitoring.Main")
+    try {
+        runServer()
+    } catch (e: Exception) {
+        logger.error("Noe fatalt skjedde under kjøring av github-monitoring, stopper prosessen", e)
+        exitProcess(1)
+    }
+}
+
+suspend fun runServer(): Unit = coroutineScope {
     val env = System.getenv("env")
     val token = if (env == "local") System.getenv("token") else withContext(Dispatchers.IO) {
         Files.readString(Path.of("/secrets/githubtoken.txt")).trim()
     }
 
-    val logger = LoggerFactory.getLogger("no.digipost.github.monitoring.Main")
     val prometheusMeterRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
 
     ApplicationInfoMetrics().bindTo(prometheusMeterRegistry)
