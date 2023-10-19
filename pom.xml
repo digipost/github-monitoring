@@ -14,10 +14,11 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <kotlin.code.style>official</kotlin.code.style>
-        <kotlin.compiler.jvmTarget>17</kotlin.compiler.jvmTarget>
+        <kotlin.compiler.jvmTarget>21</kotlin.compiler.jvmTarget>
         <apollo.version>3.7.0</apollo.version>
-        <jackson.version>2.14.0</jackson.version>
-        <kotlin.version>1.7.21</kotlin.version>
+        <jackson.version>2.14.3</jackson.version>
+        <kotlin.version>1.9.20-RC</kotlin.version>
+        <digipost.base.image>digipost.azurecr.io/infrastructure/docker-openjdk@sha256:92e1c6b7b5fb9b5e2459595ef6b1be9ea5a835ca44914c1c558a8c025da78651</digipost.base.image>
     </properties>
 
     <dependencies>
@@ -189,10 +190,10 @@
             <plugin>
                 <groupId>com.google.cloud.tools</groupId>
                 <artifactId>jib-maven-plugin</artifactId>
-                <version>3.3.0</version>
+                <version>3.4.0</version>
                 <configuration>
                     <from>
-                        <image>digipost.azurecr.io/infrastructure/docker-openjdk:jdk17_17.0.2</image>
+                        <image>${digipost.base.image}</image>
                     </from>
                     <to>
                         <image>digipost.azurecr.io/digipost/${project.artifactId}:${project.version}</image>

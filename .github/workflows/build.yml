@@ -23,7 +23,7 @@ jobs:
 
       - uses: joschi/setup-jdk@v2.3.0
         with:
-          java-version: 17
+          java-version: 21
 
       - name: 'Cache local Maven repository'
         uses: actions/cache@v2
