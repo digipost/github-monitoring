@@ -199,6 +199,7 @@
                         <image>digipost.azurecr.io/digipost/${project.artifactId}:${project.version}</image>
                     </to>
                     <container>
+                        <mainClass>no.digipost.github.monitoring.MainKt</mainClass>
                         <jvmFlags>
                             <jvmFlag>-Dfile.encoding=UTF-8</jvmFlag>
                             <jvmFlag>-Dlogback.configurationFile=../logback.xml</jvmFlag>
