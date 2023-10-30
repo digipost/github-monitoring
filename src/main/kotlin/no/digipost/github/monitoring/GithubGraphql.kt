@@ -10,6 +10,7 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.internal.toImmutableList
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.io.IOException
 import java.time.ZonedDateTime
 
 data class Repos(val all: List<Repository>)
@@ -46,14 +47,18 @@ fun fetchAllReposWithVulnerabilities(apolloClient: ApolloClient, githubApiClient
 
                 if (POSSIBLE_CONTAINER_SCAN.contains(r.language)) {
                     launch {
-                        val containerScanStats = getContainerScanStats(githubApiClient, r)
-                        if (containerScanStats != null) {
-                            r.copy(containerScanStats = containerScanStats).let {
-                                logger.info("${r.name} ${if (containerScanStats.passes) "passerer" else "feiler"} containerscan, ${containerScanStats.passPercentage}% suksess siste ${daysToCount} dager (${containerScanStats.numberOfRuns} kjøringer)")
-                               containerScanRepositories[it.name] = containerScanStats
+                        try {
+                            val containerScanStats = getContainerScanStats(githubApiClient, r)
+                            if (containerScanStats != null) {
+                                r.copy(containerScanStats = containerScanStats).let {
+                                    logger.info("${r.name} ${if (containerScanStats.passes) "passerer" else "feiler"} containerscan, ${containerScanStats.passPercentage}% suksess siste ${daysToCount} dager (${containerScanStats.numberOfRuns} kjøringer)")
+                                   containerScanRepositories[it.name] = containerScanStats
+                                }
+                            } else {
+                                logger.info("${r.name} har ikke containerscan-workflow, skipper")
                             }
-                        } else {
-                            logger.info("${r.name} har ikke containerscan-workflow, skipper")
+                        } catch (e: IOException) {
+                            logger.warn("IOException ved henting av container scans", e)
                         }
                     }
                 }
