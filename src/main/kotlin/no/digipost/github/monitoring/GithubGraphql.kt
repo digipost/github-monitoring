@@ -96,7 +96,6 @@ private suspend fun getVulnerabilitiesForRepo(
                 it.securityVulnerability!!.severity.name,
                 ZonedDateTime.now(),
                 it.securityVulnerability.`package`.name,
-                it.securityVulnerability.advisory.description,
                 it.securityVulnerability.advisory.cvss.score,
                 it.securityVulnerability.advisory.identifiers.firstOrNull { identifier -> "CVE" == identifier.type }?.value
                     ?: "ukjent CVE"
