@@ -7,12 +7,14 @@ import io.micrometer.core.instrument.Tags
 import io.micrometer.prometheus.PrometheusConfig
 import io.micrometer.prometheus.PrometheusMeterRegistry
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import no.digipost.monitoring.micrometer.ApplicationInfoMetrics
 import no.digipost.monitoring.prometheus.SimplePrometheusServer
 import org.slf4j.LoggerFactory
@@ -52,12 +54,19 @@ suspend fun main(): Unit = coroutineScope {
 
     launch {
         while (isActive) {
-            val timeMillis = measureTimeMillis {
-                publish(apolloClientFactory.invoke(), githubApiClient, multiGaugeRepoVulnCount, multiGaugeContainerScan, multiGaugeInfoScore)
+            try {
+                withTimeout(60_000) {
+                    val timeMillis = measureTimeMillis {
+                        publish(apolloClientFactory.invoke(), githubApiClient, multiGaugeRepoVulnCount, multiGaugeContainerScan, multiGaugeInfoScore)
+                    }
+                    logger.info("Henting av repos med sårbarheter tok ${timeMillis}ms")
+                }
+            } catch (e: TimeoutCancellationException) {
+                logger.warn("Henting av repos med sårbarheter brukte for lang tid (timeout)")
             }
-            logger.info("Henting av repos med sårbarheter tok ${timeMillis}ms")
             delay(1000 * 60 * 5)
         }
+        logger.warn("Hovedjobben er ikke aktiv lenger og avslutter")
     }
 
     SimplePrometheusServer(logger::info)
@@ -141,4 +150,3 @@ suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient
     }
 
 }
-
