@@ -28,7 +28,6 @@ data class Vulnerability(
     var severity: String,
     var createdAt: ZonedDateTime,
     var packageName: String,
-    var advisoryDesctiption: String,
     var score: Double,
     var CVE: String
 )

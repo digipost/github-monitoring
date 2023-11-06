@@ -115,7 +115,7 @@
                                 <github-complete-api>
                                     <enabled>true</enabled>
                                     <addSourceRoot>true</addSourceRoot>
-                                    <schemaPath>${project.basedir}/src/main/graphql/github/schema.json</schemaPath>
+                                    <schemaPath>${project.basedir}/src/main/graphql/github/schema.graphqls</schemaPath>
                                     <excludes></excludes>
                                     <compilationUnit>
                                         <name>github</name>
