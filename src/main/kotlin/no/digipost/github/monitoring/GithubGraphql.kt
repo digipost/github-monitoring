@@ -120,7 +120,7 @@ private suspend fun listRepos(apolloClient: ApolloClient, repositoryChannel: Cha
         val response = apolloClient.query(QueryRepositoriesQuery(Optional.Present(cursor))).execute()
 
         response.data?.viewer?.repositories?.nodes
-            ?.filter { "digipost" == it?.owner?.login && !it.isArchived }
+            ?.filter { "digipost" == it?.owner?.login }
             ?.filter { LANGUAGES.contains(it?.languages?.nodes?.firstOrNull()?.name) }
             ?.forEach {
                 it?.let {
