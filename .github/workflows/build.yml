@@ -44,7 +44,7 @@ jobs:
           AZURECR_USERNAME: ${{ secrets.AZURE_CONTAINER_REGISTRY_USERNAME }}
           AZURECR_PASSWORD: ${{ secrets.AZURE_CONTAINER_REGISTRY_PASSWORD }}
           GITHUB_ACTOR: ${{ secrets.DIGIPOST_BOT_USERNAME }}
-          GITHUB_TOKEN: ${{ secrets.DIGIPOST_SKRIV_PACKAGE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.DIGIPOST_LES_PACKAGE_TOKEN }}
           DPOST_HOME: /tmp
 
       - name: Archive production artifacts
