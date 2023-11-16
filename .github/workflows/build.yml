@@ -1,70 +1,57 @@
-name: Build
+# Generert av github-actions-templates, bør ikke endres manuelt
+name: Maven Build and deploy
 on: [push]
 
 jobs:
+
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: digipost/set-timezone@v1.0
+      - uses: digipost/set-timezone@v2.0
         with:
           timezoneLinux: "Europe/Oslo"
-      - uses: actions/checkout@v2
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Set REVISION environment variable
-        run: echo "REVISION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+        uses: digipost/set-revision@2.0
 
-      - name: Rename main branch revision to latest
-        if: ${{env.REVISION=='master'}}
-        run: echo "REVISION=latest" >> $GITHUB_ENV
-
-      - name: Add snapshot version suffix on untagged (non-released) builds
-        if: ${{env.REVISION != 'latest' && startsWith(github.ref, 'refs/tags') == false}}
-        run: echo "REVISION=${REVISION}-SNAPSHOT" >> $GITHUB_ENV
-
-      - uses: joschi/setup-jdk@v2.3.0
+      - name: Set up JDK
+        uses: actions/setup-java@v3
         with:
-          java-version: 21
-
-      - name: 'Cache local Maven repository'
-        uses: actions/cache@v2
-        with:
-          path: ~/.m2
-          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-m2
+          distribution: temurin
+          java-version-file: '.java-version'
+          server-id: github
+          cache: 'maven'
 
       - name: Set release version
-        env:
-          GH_ACTOR: ${{ secrets.DIGIPOST_BOT_USERNAME }}
-          GH_TOKEN: ${{ secrets.DIGIPOST_LES_PACKAGE_TOKEN }}
         run: mvn --settings .mvn/settings.xml versions:set --no-transfer-progress -DnewVersion=$REVISION
 
-      - name: Set mvn kommando for master
-        if: ${{env.REVISION == 'latest'}}
-        run: echo "MVNKOMMANDO=--settings .mvn/settings.xml clean verify --no-transfer-progress --show-version --batch-mode" >> $GITHUB_ENV
+      - name: Set MVN_GOALS environment variable
+        uses: digipost/set-maven-goals@1.0
+        with:
+           deploy-to-ACR: true
+           deploy-to-GPR: true
 
-      - name: Set mvn kommando for branch
-        if: ${{env.REVISION != 'latest'}}
-        run: echo "MVNKOMMANDO=--settings .mvn/settings.xml clean verify jib:build --no-transfer-progress --show-version --batch-mode" >> $GITHUB_ENV
-
-      - name: Set mvn kommando for tag
-        if: ${{startsWith(github.ref, 'refs/tags') == true}}
-        run: echo "MVNKOMMANDO=--settings .mvn/settings.xml -Dmaven.test.skip.exec clean package jib:build --no-transfer-progress --show-version --batch-mode" >> $GITHUB_ENV
-
-      - name: Build 
+      - name: Build, test and publish to GPR and ACR
+        run: |
+          mvn $MVN_GOALS --settings .mvn/settings.xml --no-transfer-progress --show-version --batch-mode --strict-checksums
         env:
           AZURECR_USERNAME: ${{ secrets.AZURE_CONTAINER_REGISTRY_USERNAME }}
           AZURECR_PASSWORD: ${{ secrets.AZURE_CONTAINER_REGISTRY_PASSWORD }}
-          GH_ACTOR: ${{ secrets.DIGIPOST_BOT_USERNAME }}
-          GH_TOKEN: ${{ secrets.DIGIPOST_LES_PACKAGE_TOKEN }}
+          GITHUB_ACTOR: ${{ secrets.DIGIPOST_BOT_USERNAME }}
+          GITHUB_TOKEN: ${{ secrets.DIGIPOST_SKRIV_PACKAGE_TOKEN }}
           DPOST_HOME: /tmp
-        run: |
-          mvn $MVNKOMMANDO
 
       - name: Archive production artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: failure()
         with:
-          name: Feilet bygg
+          name: Upload for feilet bygg
           path: |
-            /home/runner/work/posten-faktura-adapter/posten-faktura-adapter/target/surefire-reports/**/*.*
+            target/testgenerertepdf/*.pdf
+            target/*_diff.pdf
