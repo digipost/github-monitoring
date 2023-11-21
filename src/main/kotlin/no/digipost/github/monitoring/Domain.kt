@@ -26,7 +26,7 @@ Antall sårbarheter: ${this.vulnerabilities.size}
 
 data class Vulnerability(
     var severity: String,
-    var createdAt: ZonedDateTime,
+    var createdAt: String,
     var packageName: String,
     var score: Double,
     var CVE: String
