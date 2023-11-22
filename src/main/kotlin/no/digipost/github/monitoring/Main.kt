@@ -128,6 +128,7 @@ suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient
                         Tags.of(
                             "name", repo.name,
                             "language", repo.language,
+                            "created", vuln.createdAt,
                             "CVE", vuln.CVE ?: "",
                             "packagename", vuln.packageName ?: "UNKNOWN",
                             "severity", vuln.severity ?: "UNKNOWN",

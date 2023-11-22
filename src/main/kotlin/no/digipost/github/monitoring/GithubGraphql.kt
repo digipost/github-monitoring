@@ -94,7 +94,7 @@ private suspend fun getVulnerabilitiesForRepo(
         it?.let {
             Vulnerability(
                 it.securityVulnerability!!.severity.name,
-                ZonedDateTime.now(),
+                it.createdAt.toString().substring(0, 10),
                 it.securityVulnerability.`package`.name,
                 it.securityVulnerability.advisory.cvss.score,
                 it.securityVulnerability.advisory.identifiers.firstOrNull { identifier -> "CVE" == identifier.type }?.value
