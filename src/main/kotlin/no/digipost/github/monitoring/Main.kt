@@ -25,6 +25,9 @@ import kotlin.system.measureTimeMillis
 
 val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin", "Go")
 val POSSIBLE_CONTAINER_SCAN = setOf("JavaScript", "Java", "TypeScript", "Kotlin")
+const val GITHUB_OWNER = "digipost";
+const val TIMOUT_PUBLISH_VULNS = 1000L * 60 * 2
+const val DELAY_BETWEEN_PUBLISH_VULNS = 1000L * 60 * 5
 
 suspend fun main(): Unit = coroutineScope {
     val env = System.getenv("env")
@@ -38,15 +41,15 @@ suspend fun main(): Unit = coroutineScope {
     ApplicationInfoMetrics().bindTo(prometheusMeterRegistry)
 
     val multiGaugeRepoVulnCount = MultiGauge.builder("repository_vulnerability_count")
-        .tags("owner", "digipost")
+        .tags("owner", GITHUB_OWNER)
         .register(prometheusMeterRegistry)
 
     val multiGaugeContainerScan = MultiGauge.builder("repository_container_scan")
-        .tags("owner", "digipost")
+        .tags("owner", GITHUB_OWNER)
         .register(prometheusMeterRegistry)
 
     val multiGaugeInfoScore = MultiGauge.builder("vulnerability_info_score")
-        .tags("owner", "digipost")
+        .tags("owner", GITHUB_OWNER)
         .register(prometheusMeterRegistry)
 
     val apolloClientFactory = cachedApolloClientFactory(token)
@@ -55,7 +58,7 @@ suspend fun main(): Unit = coroutineScope {
     launch {
         while (isActive) {
             try {
-                withTimeout(60_000) {
+                withTimeout(TIMOUT_PUBLISH_VULNS) {
                     val timeMillis = measureTimeMillis {
                         publish(apolloClientFactory.invoke(), githubApiClient, multiGaugeRepoVulnCount, multiGaugeContainerScan, multiGaugeInfoScore)
                     }
@@ -64,7 +67,7 @@ suspend fun main(): Unit = coroutineScope {
             } catch (e: TimeoutCancellationException) {
                 logger.warn("Henting av repos med sårbarheter brukte for lang tid (timeout)")
             }
-            delay(1000 * 60 * 5)
+            delay(DELAY_BETWEEN_PUBLISH_VULNS)
         }
         logger.warn("Hovedjobben er ikke aktiv lenger og avslutter")
     }
@@ -112,11 +115,11 @@ suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient
             val onlyVulnerable = all.filter { it.vulnerabilities.isNotEmpty() }
             val onlyContainerScan = all.filter { it.containerScanStats != null }
 
-            logger.info("Antall repos: ${all.size}")
-            logger.info("Antall med sårbarheter: ${onlyVulnerable.size}")
-            logger.info("Antall sårbarheter å rette: ${onlyVulnerable.flatMap { it.vulnerabilities }.count()}")
-            logger.info("Antall som feiler containerscan: ${onlyContainerScan.map { it.containerScanStats?.passes }.count()}")
-            logger.info("Gjennomsnittlig suksess for containerscan: ${onlyContainerScan.mapNotNull { it.containerScanStats?.passPercentage }.average()}%")
+            logger.info("Antall repos: {}", all.size)
+            logger.info("Antall med sårbarheter: {}", onlyVulnerable.size)
+            logger.info("Antall sårbarheter å rette: {}", onlyVulnerable.flatMap { it.vulnerabilities }.count())
+            logger.info("Antall som feiler containerscan: {}", onlyContainerScan.map { it.containerScanStats?.passes }.count())
+            logger.info("Gjennomsnittlig suksess for containerscan: {}%", onlyContainerScan.mapNotNull { it.containerScanStats?.passPercentage }.average())
 
             all.map { repo ->
                 MultiGauge.Row.of(Tags.of("name", repo.name, "language", repo.language), repo.vulnerabilities.size)
@@ -129,10 +132,10 @@ suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient
                             "name", repo.name,
                             "language", repo.language,
                             "created", vuln.createdAt,
-                            "CVE", vuln.CVE ?: "",
-                            "packagename", vuln.packageName ?: "UNKNOWN",
-                            "severity", vuln.severity ?: "UNKNOWN",
-                        ), vuln.score ?: 0.0
+                            "CVE", vuln.CVE,
+                            "packagename", vuln.packageName,
+                            "severity", vuln.severity,
+                        ), vuln.score
                     )
                 }
             }.flatMap { it.toList() }.let { registerVulnerabilites.register(it) }

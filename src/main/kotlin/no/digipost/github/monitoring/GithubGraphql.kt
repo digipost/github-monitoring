@@ -7,11 +7,11 @@ import com.github.graphql.client.QueryRepositoriesQuery
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import okhttp3.internal.immutableListOf
 import okhttp3.internal.toImmutableList
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.IOException
-import java.time.ZonedDateTime
 
 data class Repos(val all: List<Repository>)
 
@@ -39,7 +39,7 @@ fun fetchAllReposWithVulnerabilities(apolloClient: ApolloClient, githubApiClient
                     val vulnerabilities = getVulnerabilitiesForRepo(apolloClient, r.name)
                     if (vulnerabilities.isNotEmpty()) {
                         r.copy(vulnerabilities = vulnerabilities).let {
-                            logger.info("${vulnerabilities.size} sårbarheter i ${r.name}")
+                            logger.info("{} sårbarheter i {}", vulnerabilities.size, r.name)
                             vulnRepositories[it.name] = vulnerabilities
                         }
                     }
@@ -51,11 +51,13 @@ fun fetchAllReposWithVulnerabilities(apolloClient: ApolloClient, githubApiClient
                             val containerScanStats = getContainerScanStats(githubApiClient, r)
                             if (containerScanStats != null) {
                                 r.copy(containerScanStats = containerScanStats).let {
-                                    logger.info("${r.name} ${if (containerScanStats.passes) "passerer" else "feiler"} containerscan, ${containerScanStats.passPercentage}% suksess siste ${daysToCount} dager (${containerScanStats.numberOfRuns} kjøringer)")
+                                    if(logger.isInfoEnabled) {
+                                        logger.info("${r.name} ${if (containerScanStats.passes) "passerer" else "feiler"} containerscan, ${containerScanStats.passPercentage}% suksess siste ${daysToCount} dager (${containerScanStats.numberOfRuns} kjøringer)")
+                                    }
                                    containerScanRepositories[it.name] = containerScanStats
                                 }
                             } else {
-                                logger.info("${r.name} har ikke containerscan-workflow, skipper")
+                                logger.info("{} har ikke containerscan-workflow, skipper", r.name)
                             }
                         } catch (e: IOException) {
                             logger.warn("IOException ved henting av container scans", e)
@@ -86,29 +88,44 @@ private suspend fun getVulnerabilitiesForRepo(
     apolloClient: ApolloClient,
     name: String
 ): List<Vulnerability> {
-    if (logger.isDebugEnabled) logger.debug("henter sårbarheter for repo $name")
-    val response = apolloClient.query(GetVulnerabilityAlertsForRepoQuery(name, "digipost")).execute()
+    logger.debug("henter sårbarheter for repo {}", name)
 
-    val vulnerabilityAlerts = response.data?.repository?.vulnerabilityAlerts?.nodes ?: emptyList()
-    val vulnerabilities = vulnerabilityAlerts.mapNotNull {
-        it?.let {
-            Vulnerability(
-                it.securityVulnerability!!.severity.name,
-                it.createdAt.toString().substring(0, 10),
-                it.securityVulnerability.`package`.name,
-                it.securityVulnerability.advisory.cvss.score,
-                it.securityVulnerability.advisory.identifiers.firstOrNull { identifier -> "CVE" == identifier.type }?.value
-                    ?: "ukjent CVE"
-            )
-        }
-    }.toImmutableList()
+    var cursor: String? = null
+    var hasNext = true
 
-    return vulnerabilities
+    var allVulnerabilities: List<Vulnerability> = immutableListOf();
+
+    while (hasNext) {
+
+        val response = apolloClient.query(GetVulnerabilityAlertsForRepoQuery(name, GITHUB_OWNER, after = Optional.present(cursor))).execute()
+
+        val vulnerabilityAlerts = response.data?.repository?.vulnerabilityAlerts?.nodes ?: emptyList()
+        val vulnerabilities = vulnerabilityAlerts.mapNotNull {
+            it?.let {
+                Vulnerability(
+                    it.securityVulnerability!!.severity.name,
+                    it.createdAt.toString().substring(0, 10),
+                    it.securityVulnerability.`package`.name,
+                    it.securityVulnerability.advisory.cvss.score,
+                    it.securityVulnerability.advisory.identifiers.firstOrNull { identifier -> "CVE" == identifier.type }?.value
+                        ?: "ukjent CVE"
+                )
+            }
+        }.toImmutableList()
+
+        allVulnerabilities = allVulnerabilities + vulnerabilities
+
+        hasNext = response.data?.repository?.vulnerabilityAlerts?.pageInfo?.hasNextPage ?: false
+
+        cursor = response.data?.repository?.vulnerabilityAlerts?.pageInfo?.endCursor
+    }
+
+    return allVulnerabilities
 }
 
 
 private suspend fun listRepos(apolloClient: ApolloClient, repositoryChannel: Channel<Repository>) {
-    if (logger.isDebugEnabled) logger.debug("Henter repoer med owner 'digipost' som ikke er arkiverte og har språk i listen $LANGUAGES")
+    if (logger.isDebugEnabled) logger.debug("Henter repoer med owner '${GITHUB_OWNER}' som ikke er arkiverte og har språk i listen $LANGUAGES")
 
     var cursor: String? = null
     var hasNext = true
@@ -119,7 +136,7 @@ private suspend fun listRepos(apolloClient: ApolloClient, repositoryChannel: Cha
         val response = apolloClient.query(QueryRepositoriesQuery(Optional.Present(cursor))).execute()
 
         response.data?.viewer?.repositories?.nodes
-            ?.filter { "digipost" == it?.owner?.login }
+            ?.filter { GITHUB_OWNER == it?.owner?.login }
             ?.filter { LANGUAGES.contains(it?.languages?.nodes?.firstOrNull()?.name) }
             ?.forEach {
                 it?.let {

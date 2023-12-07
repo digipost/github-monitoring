@@ -18,10 +18,9 @@ class GithubApiClient(private val githubToken: String) {
 
     val client: HttpClient = HttpClient.newBuilder().build()
     private val formatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-    private var cache: HashMap<String, Boolean> = hashMapOf()
 
     fun fetchWorkflowRuns(repo: Repository, days: Int): List<WorkflowRun> {
-        return if (cache.getOrPut(repo.name) { hasContainerScanWorkflow(repo) }) {
+        return if (hasContainerScanWorkflow(repo)) {
             fetchRuns(repo, days)
         } else {
             emptyList()

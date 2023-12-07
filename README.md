@@ -10,3 +10,7 @@ kan du laste ned her: [Public Schema](https://docs.github.com/en/graphql/overvie
 
 For å teste ut spørringer, så har GitHub en fin interaktiv "explorer".
 Den finner du her: [GraphQL API Explorer](https://docs.github.com/en/graphql/overview/explorer)
+
+
+### DISCLAIMER
+Dette er laget veldig spesifikt for Digipost.  
