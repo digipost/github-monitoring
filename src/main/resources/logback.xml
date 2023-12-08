@@ -17,10 +17,7 @@
                 <levelValue>[ignore]</levelValue>
                 <version>[ignore]</version>
             </fieldNames>
-            <provider class="no.posten.dpost.logging.loggingevent.DigipostStandardFieldsProvider">
-                <logType>app</logType>
-                <application>${application}</application>
-            </provider>
+            <customFields>{"log_type":"app","application":"${application}"}</customFields>
         </encoder>
     </appender>
 
