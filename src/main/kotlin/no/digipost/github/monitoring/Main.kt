@@ -23,7 +23,7 @@ import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.system.measureTimeMillis
 
-val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin", "Go")
+val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin", "Go", "Shell", "Dockerfile")
 val POSSIBLE_CONTAINER_SCAN = setOf("JavaScript", "Java", "TypeScript", "Kotlin", "Shell", "Dockerfile")
 const val GITHUB_OWNER = "digipost";
 const val TIMOUT_PUBLISH_VULNS = 1000L * 60 * 2
