@@ -25,14 +25,27 @@ import kotlin.system.measureTimeMillis
 
 val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin", "Go")
 val POSSIBLE_CONTAINER_SCAN = setOf("JavaScript", "Java", "TypeScript", "Kotlin", "Shell", "Dockerfile")
-const val GITHUB_OWNER = "digipost";
+val GITHUB_SECRET_PATH = Path.of("/secrets/githubtoken.txt")
+val SLACK_WEBHOOK_URL_PATH = Path.of("/secrets/slack-webhook-url.txt")
+const val GITHUB_OWNER = "digipost"
 const val TIMOUT_PUBLISH_VULNS = 1000L * 60 * 2
 const val DELAY_BETWEEN_PUBLISH_VULNS = 1000L * 60 * 5
 
+var existingVulnerabilities: Map<String, Vulnerability>? = null
+
 suspend fun main(): Unit = coroutineScope {
-    val env = System.getenv("env")
-    val token = if (env == "local") System.getenv("token") else withContext(Dispatchers.IO) {
-        Files.readString(Path.of("/secrets/githubtoken.txt")).trim()
+    val isLocal = System.getenv("env") == "local"
+
+    val githubToken = if (isLocal) System.getenv("token") else withContext(Dispatchers.IO) {
+        Files.readString(GITHUB_SECRET_PATH).trim()
+    }
+
+    val slackWebhookUrl: String? = if (isLocal && System.getenv().containsKey("SLACK_WEBHOOK_URL")) System.getenv("SLACK_WEBHOOK_URL") else withContext(Dispatchers.IO) {
+        if (Files.exists(SLACK_WEBHOOK_URL_PATH)) {
+            Files.readString(SLACK_WEBHOOK_URL_PATH).trim()
+        } else {
+            null
+        }
     }
 
     val logger = LoggerFactory.getLogger("no.digipost.github.monitoring.Main")
@@ -52,20 +65,21 @@ suspend fun main(): Unit = coroutineScope {
         .tags("owner", GITHUB_OWNER)
         .register(prometheusMeterRegistry)
 
-    val apolloClientFactory = cachedApolloClientFactory(token)
-    val githubApiClient = GithubApiClient(token)
+    val apolloClientFactory = cachedApolloClientFactory(githubToken)
+    val githubApiClient = GithubApiClient(githubToken)
+    val slackClient = slackWebhookUrl?.let{ SlackClient(it) }
 
     launch {
         while (isActive) {
             try {
                 withTimeout(TIMOUT_PUBLISH_VULNS) {
                     val timeMillis = measureTimeMillis {
-                        publish(apolloClientFactory.invoke(), githubApiClient, multiGaugeRepoVulnCount, multiGaugeContainerScan, multiGaugeInfoScore)
+                        publish(apolloClientFactory.invoke(), githubApiClient, slackClient, multiGaugeRepoVulnCount, multiGaugeContainerScan, multiGaugeInfoScore)
                     }
                     logger.info("Henting av repos med sårbarheter tok ${timeMillis}ms")
                 }
             } catch (e: TimeoutCancellationException) {
-                logger.warn("Henting av repos med sårbarheter brukte for lang tid (timeout)")
+                logger.warn("Henting av repos med sårbarheter brukte for lang tid (timeout) $e")
             }
             delay(DELAY_BETWEEN_PUBLISH_VULNS)
         }
@@ -101,12 +115,24 @@ fun cachedApolloClientFactory(token: String): () -> ApolloClient {
     }
 }
 
-suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient, registerRepos: MultiGauge, registerContainerScanStats: MultiGauge, registerVulnerabilites: MultiGauge): Unit = coroutineScope {
+suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient, slackClient: SlackClient?, registerRepos: MultiGauge, registerContainerScanStats: MultiGauge, registerVulnerabilites: MultiGauge): Unit = coroutineScope {
 
     val channel = Channel<Repos>()
     launch {
         fetchAllReposWithVulnerabilities(apolloClient, githubApiClient)
-            .let { channel.send(it) }
+            .let { repos ->
+                if (existingVulnerabilities != null) {
+                    repos.getUniqueCVEs()
+                        .filter { (cve, _) -> !existingVulnerabilities!!.containsKey(cve) }
+                        .forEach { (_, vulnerability) ->
+                            println("Ny sårbarhet: $vulnerability")
+                            slackClient?.sendToSlack(vulnerability)
+                        }
+                }
+
+                existingVulnerabilities = repos.getUniqueCVEs()
+                channel.send(repos)
+            }
     }
 
     launch {
