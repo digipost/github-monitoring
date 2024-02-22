@@ -13,7 +13,11 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.IOException
 
-data class Repos(val all: List<Repository>)
+data class Repos(val all: List<Repository>) {
+    fun getUniqueCVEs(): Map<String, Vulnerability> {
+        return all.flatMap{ it.vulnerabilities }.associateBy{ it.CVE }
+    }
+}
 
 val logger: Logger = LoggerFactory.getLogger("no.digipost.github.monitoring.GithubGraphql")
 
