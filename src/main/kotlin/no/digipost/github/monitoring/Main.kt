@@ -67,10 +67,7 @@ suspend fun main(): Unit = coroutineScope {
 
     val apolloClientFactory = cachedApolloClientFactory(githubToken)
     val githubApiClient = GithubApiClient(githubToken)
-    val slackClient = slackWebhookUrl?.let{
-        println("Opprettet slack-klient")
-        SlackClient(it)
-    }
+    val slackClient = slackWebhookUrl?.let{ SlackClient(it) }
 
     launch {
         while (isActive) {
