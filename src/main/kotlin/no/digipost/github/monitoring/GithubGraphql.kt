@@ -107,7 +107,7 @@ private suspend fun getVulnerabilitiesForRepo(
         val vulnerabilities = vulnerabilityAlerts.mapNotNull {
             it?.let {
                 Vulnerability(
-                    it.securityVulnerability!!.severity.name,
+                    it.securityVulnerability!!.severity,
                     it.createdAt.toString().substring(0, 10),
                     it.securityVulnerability.`package`.name,
                     it.securityVulnerability.advisory.cvss.score,
@@ -159,3 +159,4 @@ private suspend fun listRepos(apolloClient: ApolloClient, repositoryChannel: Cha
         cursor = response.data?.viewer?.repositories?.pageInfo?.endCursor
     }
 }
+

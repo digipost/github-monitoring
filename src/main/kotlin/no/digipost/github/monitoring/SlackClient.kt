@@ -22,7 +22,7 @@ class SlackClient(private val webhookUrl: String) {
     }
 
     private fun toSlackInformation(vulnerability: Vulnerability): String {
-        return "*${vulnerability.severity} (${vulnerability.score})* " +
+        return "*${vulnerability.severity.name} (${vulnerability.score})* " +
                 "<https://nvd.nist.gov/vuln/detail/${vulnerability.CVE}|${vulnerability.CVE}>, " +
                 "package name: ${vulnerability.packageName}"
     }

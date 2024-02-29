@@ -1,4 +1,5 @@
 package no.digipost.github.monitoring
+import com.github.graphql.client.type.SecurityAdvisorySeverity
 import com.google.gson.annotations.SerializedName
 import java.time.ZonedDateTime
 
@@ -15,7 +16,7 @@ data class Repository(
 ${this.owner}/${this.name} - ${this.language}
 Antall sårbarheter: ${this.vulnerabilities.size}
     ${this.vulnerabilities.map { """Package: ${it.packageName}
-    Severity: ${it.severity}
+    Severity: ${it.severity.name}
     Score: ${it.score} / 10
     CVE: ${it.CVE}
     """ }.joinToString("\n")}
@@ -25,7 +26,7 @@ Antall sårbarheter: ${this.vulnerabilities.size}
 }
 
 data class Vulnerability(
-    var severity: String,
+    var severity: SecurityAdvisorySeverity,
     var createdAt: String,
     var packageName: String,
     var score: Double,
