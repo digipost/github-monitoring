@@ -2,6 +2,7 @@ package no.digipost.github.monitoring
 
 import com.apollographql.apollo3.ApolloClient
 import com.apollographql.apollo3.api.http.HttpHeader
+import com.github.graphql.client.type.SecurityAdvisorySeverity
 import io.micrometer.core.instrument.MultiGauge
 import io.micrometer.core.instrument.Tags
 import io.micrometer.prometheus.PrometheusConfig
@@ -48,6 +49,7 @@ suspend fun main(): Unit = coroutineScope {
         }
     }
 
+    val severityLimitForNotifications = if (System.getenv().containsKey("severity_limit")) SecurityAdvisorySeverity.safeValueOf(System.getenv("severity_limit")) else SecurityAdvisorySeverity.UNKNOWN__
     val logger = LoggerFactory.getLogger("no.digipost.github.monitoring.Main")
     val prometheusMeterRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
 
@@ -74,7 +76,7 @@ suspend fun main(): Unit = coroutineScope {
             try {
                 withTimeout(TIMOUT_PUBLISH_VULNS) {
                     val timeMillis = measureTimeMillis {
-                        publish(apolloClientFactory.invoke(), githubApiClient, slackClient, multiGaugeRepoVulnCount, multiGaugeContainerScan, multiGaugeInfoScore)
+                        publish(apolloClientFactory.invoke(), githubApiClient, slackClient, severityLimitForNotifications, multiGaugeRepoVulnCount, multiGaugeContainerScan, multiGaugeInfoScore)
                     }
                     logger.info("Henting av repos med sårbarheter tok ${timeMillis}ms")
                 }
@@ -115,7 +117,7 @@ fun cachedApolloClientFactory(token: String): () -> ApolloClient {
     }
 }
 
-suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient, slackClient: SlackClient?, registerRepos: MultiGauge, registerContainerScanStats: MultiGauge, registerVulnerabilites: MultiGauge): Unit = coroutineScope {
+suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient, slackClient: SlackClient?, severityLimit: SecurityAdvisorySeverity, registerRepos: MultiGauge, registerContainerScanStats: MultiGauge, registerVulnerabilites: MultiGauge): Unit = coroutineScope {
 
     val channel = Channel<Repos>()
     launch {
@@ -123,7 +125,7 @@ suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient
             .let { repos ->
                 if (existingVulnerabilities != null) {
                     repos.getUniqueCVEs()
-                        .filter { (cve, _) -> !existingVulnerabilities!!.containsKey(cve) }
+                        .filter { (cve, vulnerability) -> !existingVulnerabilities!!.containsKey(cve) && vulnerability.severity.ordinal <= severityLimit.ordinal }
                         .forEach { (_, vulnerability) ->
                             println("Ny sårbarhet: $vulnerability")
                             slackClient?.sendToSlack(vulnerability)
@@ -160,7 +162,7 @@ suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient
                             "created", vuln.createdAt,
                             "CVE", vuln.CVE,
                             "packagename", vuln.packageName,
-                            "severity", vuln.severity,
+                            "severity", vuln.severity.name,
                         ), vuln.score
                     )
                 }
