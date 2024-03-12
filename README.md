@@ -11,4 +11,11 @@ kan du laste ned her: [Public Schema](https://docs.github.com/en/graphql/overvie
 For å teste ut spørringer, så har GitHub en fin interaktiv "explorer".
 Den finner du her: [GraphQL API Explorer](https://docs.github.com/en/graphql/overview/explorer)
 
+----
 
+## Slackintegrasjon
+
+Denne applikasjonen kan settes opp med en slackbotintegrasjon. Da må man i så fall gi en slack webhook url som input.
+
+- For å aktivere slackvarslinger settes miljøvariabelen `SLACK_WEBHOOK_URL` til en webhook url som du har fått fra slackboten du har laget
+- For å velge hvilket nivå av sårbarheter som skal varsles (UNKNOWN/LOW/MEDIUM/HIGH/CRITICAL) kan man sette en miljøvariabel `severity_limit`. Da vil boten kun varsle om sårbarheter med lik eller høyere alvorlighet.
