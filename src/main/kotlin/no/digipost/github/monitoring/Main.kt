@@ -9,19 +9,21 @@ import io.micrometer.prometheus.PrometheusConfig
 import io.micrometer.prometheus.PrometheusMeterRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import no.digipost.monitoring.micrometer.ApplicationInfoMetrics
 import no.digipost.monitoring.prometheus.SimplePrometheusServer
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Optional
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.jvm.optionals.getOrNull
 import kotlin.system.measureTimeMillis
 
 val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin", "Go", "Shell", "Dockerfile")
@@ -34,14 +36,16 @@ const val DELAY_BETWEEN_PUBLISH_VULNS = 1000L * 60 * 5
 
 var existingVulnerabilities: Map<String, Vulnerability>? = null
 
-suspend fun main(): Unit = coroutineScope {
-    val isLocal = System.getenv("env") == "local"
+var VULNERABILITY_ORDERING = listOf(SecurityAdvisorySeverity.CRITICAL, SecurityAdvisorySeverity.HIGH, SecurityAdvisorySeverity.MODERATE, SecurityAdvisorySeverity.LOW, SecurityAdvisorySeverity.UNKNOWN__)
 
-    val githubToken = if (isLocal) System.getenv("token") else withContext(Dispatchers.IO) {
+suspend fun main(): Unit = coroutineScope {
+    val isLocal = getEnvOrProp("env").getOrNull() == "local"
+
+    val githubToken = if (isLocal) getEnvOrProp("token").get() else withContext(Dispatchers.IO) {
         Files.readString(GITHUB_SECRET_PATH).trim()
     }
 
-    val slackWebhookUrl: String? = if (isLocal && System.getenv().containsKey("SLACK_WEBHOOK_URL")) System.getenv("SLACK_WEBHOOK_URL") else withContext(Dispatchers.IO) {
+    val slackWebhookUrl: String? = if (isLocal) getEnvOrProp("SLACK_WEBHOOK_URL").getOrNull() else withContext(Dispatchers.IO) {
         if (Files.exists(SLACK_WEBHOOK_URL_PATH)) {
             Files.readString(SLACK_WEBHOOK_URL_PATH).trim()
         } else {
@@ -49,7 +53,7 @@ suspend fun main(): Unit = coroutineScope {
         }
     }
 
-    val severityLimitForNotifications = if (System.getenv().containsKey("severity_limit")) SecurityAdvisorySeverity.safeValueOf(System.getenv("severity_limit")) else SecurityAdvisorySeverity.UNKNOWN__
+    val severityLimitForNotifications = SecurityAdvisorySeverity.safeValueOf(getEnvOrProp("severity_limit").orElse("UNKNOWN"))
     val logger = LoggerFactory.getLogger("no.digipost.github.monitoring.Main")
     val prometheusMeterRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
 
@@ -111,7 +115,7 @@ fun cachedApolloClientFactory(token: String): () -> ApolloClient {
         } else {
             println("Lager ny ApolloClient")
             client = fakt(token)
-            age.set(System.currentTimeMillis());
+            age.set(System.currentTimeMillis())
             client
         }
     }
@@ -125,7 +129,7 @@ suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient
             .let { repos ->
                 if (existingVulnerabilities != null) {
                     repos.getUniqueCVEs()
-                        .filter { (cve, vulnerability) -> !existingVulnerabilities!!.containsKey(cve) && vulnerability.severity.ordinal <= severityLimit.ordinal }
+                        .filter { (cve, vulnerability) -> !existingVulnerabilities!!.containsKey(cve) && VULNERABILITY_ORDERING.indexOf(vulnerability.severity) <= VULNERABILITY_ORDERING.indexOf(severityLimit) }
                         .forEach { (_, vulnerability) ->
                             println("Ny sårbarhet: $vulnerability")
                             slackClient?.sendToSlack(vulnerability)
@@ -181,4 +185,12 @@ suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient
         }
     }
 
+}
+
+private fun getEnvOrProp(propName: String): Optional<String> {
+    var result = System.getenv(propName)
+    if (result != null) return Optional.of(result)
+    result = System.getProperty(propName)
+
+    return Optional.ofNullable(result)
 }
