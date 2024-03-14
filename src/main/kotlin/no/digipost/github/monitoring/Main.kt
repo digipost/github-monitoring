@@ -3,6 +3,7 @@ package no.digipost.github.monitoring
 import com.apollographql.apollo3.ApolloClient
 import com.apollographql.apollo3.api.http.HttpHeader
 import com.github.graphql.client.type.SecurityAdvisorySeverity
+import com.github.graphql.client.type.SecurityAdvisorySeverity.*
 import io.micrometer.core.instrument.MultiGauge
 import io.micrometer.core.instrument.Tags
 import io.micrometer.prometheus.PrometheusConfig
@@ -34,6 +35,8 @@ const val DELAY_BETWEEN_PUBLISH_VULNS = 1000L * 60 * 5
 
 var existingVulnerabilities: Map<String, Vulnerability>? = null
 
+var VULNERABILITY_ORDERING = listOf(CRITICAL, HIGH, MODERATE, LOW, UNKNOWN__)
+
 suspend fun main(): Unit = coroutineScope {
     val isLocal = System.getenv("env") == "local"
 
@@ -41,7 +44,9 @@ suspend fun main(): Unit = coroutineScope {
         Files.readString(GITHUB_SECRET_PATH).trim()
     }
 
-    val slackWebhookUrl: String? = if (isLocal && System.getenv().containsKey("SLACK_WEBHOOK_URL")) System.getenv("SLACK_WEBHOOK_URL") else withContext(Dispatchers.IO) {
+    val slackWebhookUrl: String? = if (isLocal && System.getenv()
+            .containsKey("SLACK_WEBHOOK_URL")
+    ) System.getenv("SLACK_WEBHOOK_URL") else withContext(Dispatchers.IO) {
         if (Files.exists(SLACK_WEBHOOK_URL_PATH)) {
             Files.readString(SLACK_WEBHOOK_URL_PATH).trim()
         } else {
@@ -49,7 +54,14 @@ suspend fun main(): Unit = coroutineScope {
         }
     }
 
-    val severityLimitForNotifications = if (System.getenv().containsKey("severity_limit")) SecurityAdvisorySeverity.safeValueOf(System.getenv("severity_limit")) else SecurityAdvisorySeverity.UNKNOWN__
+    if (System.getenv().containsKey("severity_limit")) {
+        println("Severity limit " + System.getenv("severity_limit"))
+    }
+    else {
+        println("Severity limit ikke satt")
+        println(System.getenv())
+    }
+    val severityLimitForNotifications = if (System.getenv().containsKey("severity_limit")) SecurityAdvisorySeverity.safeValueOf(System.getenv("severity_limit")) else UNKNOWN__
     val logger = LoggerFactory.getLogger("no.digipost.github.monitoring.Main")
     val prometheusMeterRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
 
@@ -111,7 +123,7 @@ fun cachedApolloClientFactory(token: String): () -> ApolloClient {
         } else {
             println("Lager ny ApolloClient")
             client = fakt(token)
-            age.set(System.currentTimeMillis());
+            age.set(System.currentTimeMillis())
             client
         }
     }
@@ -125,7 +137,7 @@ suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient
             .let { repos ->
                 if (existingVulnerabilities != null) {
                     repos.getUniqueCVEs()
-                        .filter { (cve, vulnerability) -> !existingVulnerabilities!!.containsKey(cve) && vulnerability.severity.ordinal <= severityLimit.ordinal }
+                        .filter { (cve, vulnerability) -> !existingVulnerabilities!!.containsKey(cve) && VULNERABILITY_ORDERING.indexOf(vulnerability.severity) <= VULNERABILITY_ORDERING.indexOf(severityLimit) }
                         .forEach { (_, vulnerability) ->
                             println("Ny sårbarhet: $vulnerability")
                             slackClient?.sendToSlack(vulnerability)
