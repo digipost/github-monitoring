@@ -8,21 +8,16 @@ import io.micrometer.core.instrument.MultiGauge
 import io.micrometer.core.instrument.Tags
 import io.micrometer.prometheus.PrometheusConfig
 import io.micrometer.prometheus.PrometheusMeterRegistry
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import no.digipost.monitoring.micrometer.ApplicationInfoMetrics
 import no.digipost.monitoring.prometheus.SimplePrometheusServer
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.*
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.jvm.optionals.getOrNull
 import kotlin.system.measureTimeMillis
 
 val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin", "Go", "Shell", "Dockerfile")
@@ -38,15 +33,13 @@ var existingVulnerabilities: Map<String, Vulnerability>? = null
 var VULNERABILITY_ORDERING = listOf(CRITICAL, HIGH, MODERATE, LOW, UNKNOWN__)
 
 suspend fun main(): Unit = coroutineScope {
-    val isLocal = System.getenv("env") == "local"
+    val isLocal = getEnvOrProp("env").getOrNull() == "local"
 
-    val githubToken = if (isLocal) System.getenv("token") else withContext(Dispatchers.IO) {
+    val githubToken = if (isLocal) getEnvOrProp("token").get() else withContext(Dispatchers.IO) {
         Files.readString(GITHUB_SECRET_PATH).trim()
     }
 
-    val slackWebhookUrl: String? = if (isLocal && System.getenv()
-            .containsKey("SLACK_WEBHOOK_URL")
-    ) System.getenv("SLACK_WEBHOOK_URL") else withContext(Dispatchers.IO) {
+    val slackWebhookUrl: String? = if (isLocal) getEnvOrProp("SLACK_WEBHOOK_URL").getOrNull() else withContext(Dispatchers.IO) {
         if (Files.exists(SLACK_WEBHOOK_URL_PATH)) {
             Files.readString(SLACK_WEBHOOK_URL_PATH).trim()
         } else {
@@ -54,15 +47,15 @@ suspend fun main(): Unit = coroutineScope {
         }
     }
 
-    val severityLimitForNotifications = if (System.getenv().containsKey("severity_limit")) SecurityAdvisorySeverity.safeValueOf(System.getenv("severity_limit")) else UNKNOWN__
+    val severityLimitForNotifications = SecurityAdvisorySeverity.safeValueOf(getEnvOrProp("severity_limit").orElse("UNKNOWN"))
     val logger = LoggerFactory.getLogger("no.digipost.github.monitoring.Main")
     val prometheusMeterRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
-    if (System.getenv().containsKey("severity_limit")) {
-        logger.warn("Severity limit " + System.getenv("severity_limit"))
+    if (getEnvOrProp("severity_limit").isPresent) {
+        logger.warn("Severity limit " + getEnvOrProp("severity_limit").get())
     }
     else {
         logger.warn("Severity limit ikke satt")
-        logger.warn(System.getenv().toString())
+        System.getProperties()
     }
 
     ApplicationInfoMetrics().bindTo(prometheusMeterRegistry)
@@ -193,4 +186,12 @@ suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient
         }
     }
 
+}
+
+private fun getEnvOrProp(propName: String): Optional<String> {
+    var result = System.getenv(propName)
+    if (result != null) return Optional.of(result)
+    result = System.getProperty(propName)
+
+    return Optional.ofNullable(result)
 }
