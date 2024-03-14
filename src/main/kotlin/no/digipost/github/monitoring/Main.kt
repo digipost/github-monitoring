@@ -54,16 +54,16 @@ suspend fun main(): Unit = coroutineScope {
         }
     }
 
-    if (System.getenv().containsKey("severity_limit")) {
-        println("Severity limit " + System.getenv("severity_limit"))
-    }
-    else {
-        println("Severity limit ikke satt")
-        println(System.getenv())
-    }
     val severityLimitForNotifications = if (System.getenv().containsKey("severity_limit")) SecurityAdvisorySeverity.safeValueOf(System.getenv("severity_limit")) else UNKNOWN__
     val logger = LoggerFactory.getLogger("no.digipost.github.monitoring.Main")
     val prometheusMeterRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
+    if (System.getenv().containsKey("severity_limit")) {
+        logger.warn("Severity limit " + System.getenv("severity_limit"))
+    }
+    else {
+        logger.warn("Severity limit ikke satt")
+        logger.warn(System.getenv().toString())
+    }
 
     ApplicationInfoMetrics().bindTo(prometheusMeterRegistry)
 
