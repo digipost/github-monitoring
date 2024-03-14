@@ -3,19 +3,25 @@ package no.digipost.github.monitoring
 import com.apollographql.apollo3.ApolloClient
 import com.apollographql.apollo3.api.http.HttpHeader
 import com.github.graphql.client.type.SecurityAdvisorySeverity
-import com.github.graphql.client.type.SecurityAdvisorySeverity.*
 import io.micrometer.core.instrument.MultiGauge
 import io.micrometer.core.instrument.Tags
 import io.micrometer.prometheus.PrometheusConfig
 import io.micrometer.prometheus.PrometheusMeterRegistry
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import no.digipost.monitoring.micrometer.ApplicationInfoMetrics
 import no.digipost.monitoring.prometheus.SimplePrometheusServer
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.*
+import java.util.Optional
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.jvm.optionals.getOrNull
 import kotlin.system.measureTimeMillis
@@ -30,7 +36,7 @@ const val DELAY_BETWEEN_PUBLISH_VULNS = 1000L * 60 * 5
 
 var existingVulnerabilities: Map<String, Vulnerability>? = null
 
-var VULNERABILITY_ORDERING = listOf(CRITICAL, HIGH, MODERATE, LOW, UNKNOWN__)
+var VULNERABILITY_ORDERING = listOf(SecurityAdvisorySeverity.CRITICAL, SecurityAdvisorySeverity.HIGH, SecurityAdvisorySeverity.MODERATE, SecurityAdvisorySeverity.LOW, SecurityAdvisorySeverity.UNKNOWN__)
 
 suspend fun main(): Unit = coroutineScope {
     val isLocal = getEnvOrProp("env").getOrNull() == "local"
