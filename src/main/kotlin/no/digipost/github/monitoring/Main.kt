@@ -72,7 +72,7 @@ suspend fun main(): Unit = coroutineScope {
         .register(prometheusMeterRegistry)
 
     val apolloClientFactory = cachedApolloClientFactory(githubToken)
-    val githubApiClient = GithubApiClient(githubToken)
+    val githubApiClientFactory = cachedGithubApiClientFactory(githubToken)
     val slackClient = slackWebhookUrl?.let{ SlackClient(it) }
 
     launch {
@@ -80,7 +80,7 @@ suspend fun main(): Unit = coroutineScope {
             try {
                 withTimeout(TIMOUT_PUBLISH_VULNS) {
                     val timeMillis = measureTimeMillis {
-                        publish(apolloClientFactory.invoke(), githubApiClient, slackClient, severityLimitForNotifications, multiGaugeRepoVulnCount, multiGaugeContainerScan, multiGaugeInfoScore)
+                        publish(apolloClientFactory.invoke(), githubApiClientFactory.invoke(), slackClient, severityLimitForNotifications, multiGaugeRepoVulnCount, multiGaugeContainerScan, multiGaugeInfoScore)
                     }
                     logger.info("Henting av repos med sårbarheter tok ${timeMillis}ms")
                 }
@@ -94,6 +94,28 @@ suspend fun main(): Unit = coroutineScope {
 
     SimplePrometheusServer(logger::info)
         .startMetricsServer(prometheusMeterRegistry, 9610)
+}
+
+fun cachedGithubApiClientFactory(token: String): () -> GithubApiClient {
+
+    val fakt: (String) -> GithubApiClient = { t: String ->
+        GithubApiClient(t)
+    }
+
+    val age = AtomicLong(System.currentTimeMillis());
+    var client = fakt(token);
+
+    return {
+        if (System.currentTimeMillis() - age.get() < 1000 * 60 * 60 * 10) {
+            println("Cachet GithubApiClient")
+            client
+        } else {
+            println("Lager ny GithubApiClient")
+            client = fakt(token)
+            age.set(System.currentTimeMillis())
+            client
+        }
+    }
 }
 
 fun cachedApolloClientFactory(token: String): () -> ApolloClient {
