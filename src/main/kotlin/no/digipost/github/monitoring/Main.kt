@@ -26,8 +26,8 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.jvm.optionals.getOrNull
 import kotlin.system.measureTimeMillis
 
-val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin", "Go", "Shell", "Dockerfile")
-val POSSIBLE_CONTAINER_SCAN = setOf("JavaScript", "Java", "TypeScript", "Kotlin", "Shell", "Dockerfile")
+val LANGUAGES = setOf("JavaScript", "Java", "TypeScript", "C#", "Kotlin", "Go", "Shell", "Dockerfile", "HTML")
+val POSSIBLE_CONTAINER_SCAN = setOf("JavaScript", "Java", "TypeScript", "Kotlin", "Shell", "Dockerfile", "HTML")
 val GITHUB_SECRET_PATH = Path.of("/secrets/githubtoken.txt")
 val SLACK_WEBHOOK_URL_PATH = Path.of("/secrets/slack-webhook-url.txt")
 const val GITHUB_OWNER = "digipost"
