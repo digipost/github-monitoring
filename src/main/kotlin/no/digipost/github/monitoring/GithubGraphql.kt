@@ -1,10 +1,17 @@
 package no.digipost.github.monitoring
 
+import com.apollographql.apollo3.ApolloCall
 import com.apollographql.apollo3.ApolloClient
+import com.apollographql.apollo3.api.ApolloResponse
 import com.apollographql.apollo3.api.Optional
 import com.github.graphql.client.GetVulnerabilityAlertsForRepoQuery
 import com.github.graphql.client.QueryRepositoriesQuery
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.internal.immutableListOf
@@ -101,7 +108,9 @@ private suspend fun getVulnerabilitiesForRepo(
 
     while (hasNext) {
 
-        val response = apolloClient.query(GetVulnerabilityAlertsForRepoQuery(name, GITHUB_OWNER, after = Optional.present(cursor))).execute()
+        val response = apolloClient.query(GetVulnerabilityAlertsForRepoQuery(name, GITHUB_OWNER, after = Optional.present(cursor))).toFlow()
+            .catch { ex -> logger.error("Noe gikk galt i henting av sårbarheter fra Github", ex) }
+            .first()
 
         val vulnerabilityAlerts = response.data?.repository?.vulnerabilityAlerts?.nodes ?: emptyList()
         val vulnerabilities = vulnerabilityAlerts.mapNotNull {
@@ -137,7 +146,9 @@ private suspend fun listRepos(apolloClient: ApolloClient, repositoryChannel: Cha
     while (hasNext) {
         if (logger.isDebugEnabled) logger.debug("henter repoer fra Github ${if (cursor != null) " etter: $cursor" else " fra toppen"}")
 
-        val response = apolloClient.query(QueryRepositoriesQuery(Optional.Present(cursor))).execute()
+        val response = apolloClient.query(QueryRepositoriesQuery(Optional.Present(cursor))).toFlow()
+            .catch { ex -> logger.error("Noe gikk galt i henting av repoer fra Github", ex) }
+            .first()
 
         response.data?.viewer?.repositories?.nodes
             ?.filter { GITHUB_OWNER == it?.owner?.login }
@@ -158,5 +169,6 @@ private suspend fun listRepos(apolloClient: ApolloClient, repositoryChannel: Cha
 
         cursor = response.data?.viewer?.repositories?.pageInfo?.endCursor
     }
+    
 }
 
