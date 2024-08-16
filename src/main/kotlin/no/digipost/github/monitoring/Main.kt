@@ -107,10 +107,10 @@ fun cachedGithubApiClientFactory(token: String): () -> GithubApiClient {
 
     return {
         if (System.currentTimeMillis() - age.get() < 1000 * 60 * 60 * 10) {
-            println("Cachet GithubApiClient")
+            logger.info("Cachet GithubApiClient")
             client
         } else {
-            println("Lager ny GithubApiClient")
+            logger.info("Lager ny GithubApiClient")
             client = fakt(token)
             age.set(System.currentTimeMillis())
             client
@@ -132,10 +132,10 @@ fun cachedApolloClientFactory(token: String): () -> ApolloClient {
 
     return {
         if (System.currentTimeMillis() - age.get() < 1000 * 60 * 60 * 10) {
-            println("Cachet ApolloClient")
+            logger.info("Cachet ApolloClient")
             client
         } else {
-            println("Lager ny ApolloClient")
+            logger.info("Lager ny ApolloClient")
             client = fakt(token)
             age.set(System.currentTimeMillis())
             client
@@ -153,7 +153,7 @@ suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient
                     repos.getUniqueCVEs()
                         .filter { (cve, vulnerability) -> !existingVulnerabilities!!.containsKey(cve) && VULNERABILITY_ORDERING.indexOf(vulnerability.severity) <= VULNERABILITY_ORDERING.indexOf(severityLimit) }
                         .forEach { (_, vulnerability) ->
-                            println("Ny sårbarhet: $vulnerability")
+                            logger.info("Ny sårbarhet: $vulnerability")
                             slackClient?.sendToSlack(vulnerability)
                         }
                 }
