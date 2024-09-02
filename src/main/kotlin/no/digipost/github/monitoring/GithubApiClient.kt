@@ -28,7 +28,11 @@ class GithubApiClient(private val githubToken: String) {
     }
 
     private fun hasContainerScanWorkflow(repo: Repository): Boolean {
-        return fetchWorkflows(repo).workflows.any { it.path.contains(SCAN_CONTAINERS_YML) }
+        return try {
+            fetchWorkflows(repo).workflows.any { it.path.contains(SCAN_CONTAINERS_YML) }
+        } catch (e: NullPointerException) {
+            false
+        }
     }
 
     private fun fetchWorkflows(repo: Repository): Workflows {
