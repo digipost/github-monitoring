@@ -4,6 +4,7 @@ import com.apollographql.apollo3.ApolloCall
 import com.apollographql.apollo3.ApolloClient
 import com.apollographql.apollo3.api.ApolloResponse
 import com.apollographql.apollo3.api.Optional
+import com.apollographql.apollo3.exception.ApolloHttpException
 import com.github.graphql.client.GetVulnerabilityAlertsForRepoQuery
 import com.github.graphql.client.QueryRepositoriesQuery
 import kotlinx.coroutines.channels.Channel
@@ -47,12 +48,16 @@ fun fetchAllReposWithVulnerabilities(apolloClient: ApolloClient, githubApiClient
                 repositories.add(r)
 
                 launch {
-                    val vulnerabilities = getVulnerabilitiesForRepo(apolloClient, r.name)
-                    if (vulnerabilities.isNotEmpty()) {
-                        r.copy(vulnerabilities = vulnerabilities).let {
-                            logger.info("{} sårbarheter i {}", vulnerabilities.size, r.name)
-                            vulnRepositories[it.name] = vulnerabilities
+                    try {
+                        val vulnerabilities = getVulnerabilitiesForRepo(apolloClient, r.name)
+                        if (vulnerabilities.isNotEmpty()) {
+                            r.copy(vulnerabilities = vulnerabilities).let {
+                                logger.info("{} sårbarheter i {}", vulnerabilities.size, r.name)
+                                vulnRepositories[it.name] = vulnerabilities
+                            }
                         }
+                    } catch (e: ApolloHttpException) {
+                        logger.warn("ApolloHttpException ved henting av sårbarheter for repo {}", r.name, e)
                     }
                 }
 
