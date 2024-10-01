@@ -1,25 +1,21 @@
 package no.digipost.github.monitoring
 
-import com.apollographql.apollo3.ApolloCall
 import com.apollographql.apollo3.ApolloClient
-import com.apollographql.apollo3.api.ApolloResponse
 import com.apollographql.apollo3.api.Optional
 import com.apollographql.apollo3.exception.ApolloHttpException
 import com.github.graphql.client.GetVulnerabilityAlertsForRepoQuery
 import com.github.graphql.client.QueryRepositoriesQuery
+import java.io.IOException
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.internal.immutableListOf
 import okhttp3.internal.toImmutableList
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.io.IOException
 
 data class Repos(val all: List<Repository>) {
     fun getUniqueCVEs(): Map<String, Vulnerability> {
@@ -113,29 +109,40 @@ private suspend fun getVulnerabilitiesForRepo(
 
     while (hasNext) {
 
-        val response = apolloClient.query(GetVulnerabilityAlertsForRepoQuery(name, GITHUB_OWNER, after = Optional.present(cursor))).toFlow()
-            .catch { ex -> logger.error("Noe gikk galt i henting av sårbarheter fra Github", ex) }
-            .first()
+        try {
+            val response = apolloClient
+                .query(GetVulnerabilityAlertsForRepoQuery(name, GITHUB_OWNER, after = Optional.present(cursor)))
+                .toFlow().first();
 
-        val vulnerabilityAlerts = response.data?.repository?.vulnerabilityAlerts?.nodes ?: emptyList()
-        val vulnerabilities = vulnerabilityAlerts.mapNotNull {
-            it?.let {
-                Vulnerability(
-                    it.securityVulnerability!!.severity,
-                    it.createdAt.toString().substring(0, 10),
-                    it.securityVulnerability.`package`.name,
-                    it.securityVulnerability.advisory.cvss.score,
-                    it.securityVulnerability.advisory.identifiers.firstOrNull { identifier -> "CVE" == identifier.type }?.value
-                        ?: "ukjent CVE"
-                )
+            val vulnerabilityAlerts = response.data?.repository?.vulnerabilityAlerts?.nodes ?: emptyList()
+            val vulnerabilities = vulnerabilityAlerts.mapNotNull {
+                it?.let {
+                    Vulnerability(
+                        it.securityVulnerability!!.severity,
+                        it.createdAt.toString().substring(0, 10),
+                        it.securityVulnerability.`package`.name,
+                        it.securityVulnerability.advisory.cvss.score,
+                        it.securityVulnerability.advisory.identifiers.firstOrNull { identifier -> "CVE" == identifier.type }?.value
+                            ?: "ukjent CVE"
+                    )
+                }
+            }.toImmutableList()
+
+            allVulnerabilities = allVulnerabilities + vulnerabilities
+
+            hasNext = response.data?.repository?.vulnerabilityAlerts?.pageInfo?.hasNextPage ?: false
+
+            cursor = response.data?.repository?.vulnerabilityAlerts?.pageInfo?.endCursor
+        } catch (e: Exception) {
+            if (e is ApolloHttpException && e.statusCode == 504) {
+                logger.warn("Fikk 504 fra ApolloGraphQL for {}, skipper", name)
+                continue
+            } else {
+                logger.error("Noe gikk galt i henting av sårbarheter fra Github", e)
+                throw e
             }
-        }.toImmutableList()
+        }
 
-        allVulnerabilities = allVulnerabilities + vulnerabilities
-
-        hasNext = response.data?.repository?.vulnerabilityAlerts?.pageInfo?.hasNextPage ?: false
-
-        cursor = response.data?.repository?.vulnerabilityAlerts?.pageInfo?.endCursor
     }
 
     return allVulnerabilities
