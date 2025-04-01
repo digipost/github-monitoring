@@ -8,20 +8,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: digipost/set-timezone@v2.0
+      - uses: digipost/set-timezone@v3.0
         with:
           timezoneLinux: "Europe/Oslo"
 
       - name: Checkout source
         uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Set REVISION environment variable
-        uses: digipost/set-revision@2.0
+        uses: digipost/set-revision@4.0
 
       - name: Set up JDK
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version-file: '.java-version'
@@ -32,7 +30,7 @@ jobs:
         run: mvn --settings .mvn/settings.xml versions:set --no-transfer-progress -DnewVersion=$REVISION
 
       - name: Set MVN_GOALS environment variable
-        uses: digipost/set-maven-goals@1.0
+        uses: digipost/set-maven-goals@3.0
         with:
            deploy-to-ACR: true
            deploy-to-GPR: false
