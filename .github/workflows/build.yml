@@ -28,6 +28,9 @@ jobs:
 
       - name: Set release version
         run: mvn --settings .mvn/settings.xml versions:set --no-transfer-progress -DnewVersion=$REVISION
+        env:
+          GITHUB_ACTOR: ${{ secrets.DIGIPOST_BOT_USERNAME }}
+          GITHUB_TOKEN: ${{ secrets.DIGIPOST_LES_PACKAGE_TOKEN }}
 
       - name: Set MVN_GOALS environment variable
         uses: digipost/set-maven-goals@3.0
