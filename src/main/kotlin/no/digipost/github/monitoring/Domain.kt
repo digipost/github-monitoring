@@ -1,7 +1,6 @@
 package no.digipost.github.monitoring
 import com.github.graphql.client.type.SecurityAdvisorySeverity
 import com.google.gson.annotations.SerializedName
-import java.time.ZonedDateTime
 
 data class Repository(
     val owner: String,
