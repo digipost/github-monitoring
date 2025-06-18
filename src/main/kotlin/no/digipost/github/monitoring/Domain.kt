@@ -48,7 +48,7 @@ data class Workflow(
 )
 
 data class WorkflowRuns(
-    @SerializedName("workflow_runs") val workflowRuns: List<WorkflowRun>
+    @SerializedName("workflow_runs") val workflowRuns: List<WorkflowRun>?
 )
 
 data class WorkflowRun(
