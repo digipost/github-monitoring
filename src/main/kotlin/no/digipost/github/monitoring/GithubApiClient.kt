@@ -1,6 +1,7 @@
 package no.digipost.github.monitoring
 
 import com.google.gson.Gson
+import com.google.gson.JsonSyntaxException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -30,7 +31,11 @@ class GithubApiClient(private val githubToken: String) {
     private fun hasContainerScanWorkflow(repo: Repository): Boolean {
         return try {
             fetchWorkflows(repo).workflows.any { it.path.contains(SCAN_CONTAINERS_YML) }
-        } catch (e: NullPointerException) {
+        } catch (e: NullPointerException ) {
+            logger.warn("NullPointerException when checking for container scan workflow in repository: ${repo.name}", e)
+            false
+        } catch (e: JsonSyntaxException) {
+            logger.warn("JsonSyntaxException when checking for container scan workflow in repository: ${repo.name}", e)
             false
         }
     }
