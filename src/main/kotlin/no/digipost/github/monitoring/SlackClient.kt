@@ -14,10 +14,14 @@ class SlackClient(private val webhookUrl: String) {
 
     fun sendToSlack(vulnerability: Vulnerability) {
         val request = slackRequest("Ny sårbarhet: ${toSlackInformation(vulnerability)}")
-        val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+        try {
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
 
-        if (response.statusCode() != 200) {
-            logger.warn("Failed to report new vulnerability to slack. Status code ${response.statusCode()}, body: ${response.body()}")
+            if (response.statusCode() != 200) {
+                logger.warn("Failed to report new vulnerability to slack. Status code ${response.statusCode()}, body: ${response.body()}")
+            }
+        } catch (e: Exception) {
+            logger.error("Error when sending vulnerability to Slack", e)
         }
     }
 
