@@ -51,6 +51,12 @@ class GithubApiClient(private val githubToken: String) {
         val uri: String = GITHUB_WORKFLOW_RUNS_URI.format(repo.owner, repo.name, datetimeRange(days), days)
         val request: HttpRequest = githubApiRequest(uri)
         val response: HttpResponse<String> = client.send(request, BodyHandlers.ofString())
+
+        if (response.body() == null) {
+            logger.warn("Null body received when fetching workflow runs for ${repo.name}")
+            return emptyList()
+        }
+
         val workflowRuns: WorkflowRuns = Gson().fromJson(response.body(), WorkflowRuns::class.java)
         return workflowRuns.workflowRuns?.filter { it.isScheduledContainerScan() } ?: run {
             logger.warn("workflowRuns is Null. repositoryname={}", repo.name)
