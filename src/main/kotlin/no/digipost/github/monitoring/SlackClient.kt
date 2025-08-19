@@ -35,7 +35,7 @@ class SlackClient(private val webhookUrl: String) {
         return HttpRequest
             .newBuilder()
             .uri(URI.create(webhookUrl))
-            .POST(HttpRequest.BodyPublishers.ofString("{ \"text\": \"$message\", \"channel\": \"#vulnerability-reporter-testing\" }"))
+            .POST(HttpRequest.BodyPublishers.ofString("{ \"text\": \"$message\"}"))
             .header("Content-Type", "application/json")
             .build()
     }
