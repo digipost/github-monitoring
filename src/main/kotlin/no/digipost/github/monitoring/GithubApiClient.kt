@@ -57,10 +57,15 @@ class GithubApiClient(private val githubToken: String) {
             return emptyList()
         }
 
-        val workflowRuns: WorkflowRuns = Gson().fromJson(response.body(), WorkflowRuns::class.java)
-        return workflowRuns.workflowRuns?.filter { it.isScheduledContainerScan() } ?: run {
-            logger.warn("workflowRuns is Null. repositoryname={}", repo.name)
-            emptyList()
+        try {
+            val workflowRuns: WorkflowRuns = Gson().fromJson(response.body(), WorkflowRuns::class.java)
+            return workflowRuns.workflowRuns?.filter { it.isScheduledContainerScan() } ?: run {
+                logger.warn("workflowRuns is Null. repositoryname={}", repo.name)
+                emptyList()
+            }
+        } catch (e: JsonSyntaxException) {
+            logger.warn("Exception when parsing response body for workflow runs. Repositoryname ${repo.name}", e)
+            return emptyList()
         }
     }
 
