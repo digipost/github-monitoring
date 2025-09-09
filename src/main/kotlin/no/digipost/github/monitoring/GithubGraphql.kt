@@ -9,6 +9,10 @@ import java.io.IOException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.forEach
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.internal.immutableListOf
@@ -157,28 +161,30 @@ private suspend fun listRepos(apolloClient: ApolloClient, repositoryChannel: Cha
     while (hasNext) {
         if (logger.isDebugEnabled) logger.debug("henter repoer fra Github ${if (cursor != null) " etter: $cursor" else " fra toppen"}")
 
-        val response = apolloClient.query(QueryRepositoriesQuery(Optional.Present(cursor))).toFlow()
-            .catch { ex -> logger.error("Noe gikk galt i henting av repoer fra Github", ex) }
-            .first()
-
-        response.data?.viewer?.repositories?.nodes
-            ?.filter { GITHUB_OWNER == it?.owner?.login }
-            ?.filter { LANGUAGES.contains(it?.languages?.nodes?.firstOrNull()?.name) }
-            ?.forEach {
-                it?.let {
-                    repositoryChannel.send(
-                        Repository(
-                            it.owner.login,
-                            it.name,
-                            it.languages?.nodes!![0]?.name ?: "unknown"
-                        )
-                    )
-                }
+        apolloClient.query(QueryRepositoriesQuery(Optional.Present(cursor))).toFlow()
+            .catch { ex ->
+                logger.error("Noe gikk galt i henting av repoer fra Github", ex)
+                hasNext = false
             }
-
-        hasNext = response.data?.viewer?.repositories?.pageInfo?.hasNextPage ?: false
-
-        cursor = response.data?.viewer?.repositories?.pageInfo?.endCursor
+            .map { it.data?.viewer?.repositories }
+            .collect { repos ->
+                hasNext = repos?.pageInfo?.hasNextPage ?: false
+                cursor = repos?.pageInfo?.endCursor
+                repos?.nodes
+                    ?.filter { GITHUB_OWNER == it?.owner?.login }
+                    ?.filter { LANGUAGES.contains(it?.languages?.nodes?.firstOrNull()?.name) }
+                    ?.forEach {
+                        it?.let {
+                            repositoryChannel.send(
+                                Repository(
+                                    it.owner.login,
+                                    it.name,
+                                    it.languages?.nodes!![0]?.name ?: "unknown"
+                                )
+                            )
+                        }
+                    }
+            }
     }
     
 }
