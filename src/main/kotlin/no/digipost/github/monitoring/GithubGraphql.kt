@@ -5,20 +5,18 @@ import com.apollographql.apollo3.api.Optional
 import com.apollographql.apollo3.exception.ApolloHttpException
 import com.github.graphql.client.GetVulnerabilityAlertsForRepoQuery
 import com.github.graphql.client.QueryRepositoriesQuery
-import java.io.IOException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.forEach
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.internal.immutableListOf
 import okhttp3.internal.toImmutableList
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.io.IOException
+import kotlin.math.max
 
 data class Repos(val all: List<Repository>) {
     fun getUniqueCVEs(): Map<String, Vulnerability> {
@@ -124,7 +122,10 @@ private suspend fun getVulnerabilitiesForRepo(
                         it.securityVulnerability!!.severity,
                         it.createdAt.toString().substring(0, 10),
                         it.securityVulnerability.`package`.name,
-                        it.securityVulnerability.advisory.cvss.score,
+                        max(
+                            it.securityVulnerability.advisory.cvssSeverities.cvssV3?.score ?: 0.0,
+                            it.securityVulnerability.advisory.cvssSeverities.cvssV4?.score ?: 0.0
+                        ),
                         it.securityVulnerability.advisory.identifiers.firstOrNull { identifier -> "CVE" == identifier.type }?.value
                             ?: "ukjent CVE"
                     )
