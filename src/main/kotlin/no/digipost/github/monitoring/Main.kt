@@ -192,7 +192,7 @@ suspend fun publish(apolloClient: ApolloClient, githubApiClient: GithubApiClient
                         ), vuln.score
                     )
                 }
-            }.flatMap { it.toList() }.let { registerVulnerabilites.register(it) }
+            }.flatMap { it.toList() }.let { registerVulnerabilites.register(it, true) }
 
             onlyContainerScan.map { repo ->
                 MultiGauge.Row.of(
