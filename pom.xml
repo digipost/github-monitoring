@@ -18,7 +18,7 @@
         <apollo.version>3.8.6</apollo.version>
         <jackson.version>2.16.0</jackson.version>
         <kotlin.version>2.3.0</kotlin.version>
-        <digipost.base.image>digipost.azurecr.io/infrastructure/docker-openjdk@sha256:1ecfd9f26e834b05a24c19cf0878495646e1d48a7d7b8b9e63d26d2048974df4</digipost.base.image>
+        <digipost.base.image>digipost.azurecr.io/infrastructure/docker-openjdk@sha256:87938ee6b2a18136bf81d658e7c822d5371bb53356d71fdf5658628e5ea5e36a</digipost.base.image>
     </properties>
 
     <dependencies>
